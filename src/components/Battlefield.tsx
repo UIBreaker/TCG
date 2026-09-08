@@ -161,18 +161,20 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
     const card = playerParty[slotIdx];
     if (!card || card.hp <= 0) return;
 
-    const aliveOtherOnField = playerParty.filter((c, idx) => idx !== slotIdx && c && c.hp > 0);
-    if (aliveOtherOnField.length === 0 && reserveRoster.length === 0) {
-      setBannerNotice('⚠️ Không thể thu hồi quái thú duy nhất khi không còn quái dự bị!');
-      setTimeout(() => setBannerNotice(null), 3000);
-      return;
+    sound.playCardDraw();
+    const newRemaining = Math.max(0, recallsRemaining - 1);
+    setRecallsRemaining(newRemaining);
+    onRecallCard?.(slotIdx);
+
+    // Switch active slot to another alive monster if this slot was active
+    const nextAliveIdx = playerParty.findIndex((c, i) => i !== slotIdx && c && c.hp > 0);
+    if (nextAliveIdx !== -1) {
+      setActiveSlotConfig(nextAliveIdx);
     }
 
-    sound.playCardDraw();
-    setRecallsRemaining(prev => Math.max(0, prev - 1));
-    onRecallCard?.(slotIdx);
-    setBannerNotice(`🃏 Đã thu hồi [${card.name}] về Túi Đồ Dự Bị! (Còn ${recallsRemaining - 1}/2 lần thu hồi)`);
-    setTimeout(() => setBannerNotice(null), 3000);
+    setSlotSkillChosenThisTurn(prev => ({ ...prev, [slotIdx]: false }));
+    setBannerNotice(`🃏 Đã thu hồi [${card.name}] về Túi Đồ Dự Bị! (Còn ${newRemaining}/2 lần thu hồi)`);
+    setTimeout(() => setBannerNotice(null), 3500);
   };
 
   // Track which player slots have explicitly selected/confirmed a skill this turn
@@ -969,18 +971,21 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
                       }}
                       onDrop={() => handleCardDrop(slotIdx)}
                       onTriggerSwap={() => handleTriggerSwap(slotIdx)}
+                      onRecall={() => handleRecallSlot(slotIdx)}
+                      recallsRemaining={recallsRemaining}
                     />
 
                     {/* Section 12: Recall Button (Thu Hồi Quái Thú - 2 lần/trận) */}
                     {playerCard && playerCard.hp > 0 && !isExecutingTurn && (
                       <button
+                        type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           handleRecallSlot(slotIdx);
                         }}
-                        className={`mt-1.5 px-2.5 py-0.5 rounded-full text-[9.5px] font-mono font-bold border flex items-center gap-1 transition ${
+                        className={`mt-1 px-2.5 py-0.5 rounded-full text-[9.5px] font-mono font-bold border flex items-center gap-1 transition relative z-30 ${
                           recallsRemaining > 0
-                            ? 'bg-emerald-950/90 hover:bg-emerald-900 border-emerald-500/70 text-emerald-200 hover:text-white hover:scale-105 cursor-pointer shadow-md'
+                            ? 'bg-emerald-950/90 hover:bg-emerald-900 border-emerald-500/70 text-emerald-200 hover:text-white hover:scale-105 cursor-pointer shadow-md active:scale-95'
                             : 'bg-slate-900/60 border-slate-700/40 text-slate-500 cursor-not-allowed'
                         }`}
                         title={recallsRemaining > 0 ? `Thu hồi quái thú về tay (Còn ${recallsRemaining}/2 lượt)` : 'Đã hết lượt thu hồi trong trận này'}
@@ -1006,8 +1011,8 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
         </div>
       </div>
 
-      {/* BOTTOM ROW (DESKTOP): Backpack & Bench Toggle (Left) | Dark Continent Center Banner | Horn & Deck (Right) */}
-      <div className="hidden md:flex w-full max-w-[1360px] mx-auto items-end justify-between z-30 shrink-0 px-2 sm:px-4">
+      {/* BOTTOM ROW (DESKTOP): Backpack & Bench Toggle (Left) | Horn & Deck (Right) */}
+      <div className="hidden md:flex w-full max-w-[1360px] mx-auto items-end justify-between z-30 shrink-0 px-2 sm:px-4 pointer-events-none">
         
         {/* BOTTOM LEFT: BACKPACK + RESERVE BENCH (TÚI ĐỒ & QUÁI DỰ BỊ) */}
         <div className="flex items-end gap-3 pointer-events-auto pb-1 z-40">
@@ -1053,18 +1058,6 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
               </div>
             </button>
           )}
-        </div>
-
-        {/* BOTTOM CENTER: UNOBSTRUCTED DARK CONTINENT ARENA BANNER */}
-        <div className="flex flex-col items-center pb-1 text-center pointer-events-none">
-          <span className="text-[11px] sm:text-xs font-fantasy font-black tracking-widest text-emerald-300/80 drop-shadow">
-            🌌 ĐẤU TRƯỜNG LỤC ĐỊA ĐEN (HUNTER X HUNTER)
-          </span>
-          <span className="text-[9px] text-amber-400/60 font-mono">
-            {reserveRoster && reserveRoster.length > 0 && playerParty.slice(0, 3).some(p => p === null)
-              ? '✨ Có làn trống! Bấm vào làn trống hoặc nút Dự Bị để xuất trận quái thú'
-              : 'Chiến tuyến 3 làn đối đầu • Lượt đi quyết định bởi Tốc Độ SPD'}
-          </span>
         </div>
 
         {/* BOTTOM RIGHT: WAR HORN + CARD DECK STAND (Image 1 Style) */}
@@ -1462,13 +1455,25 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
         </div>
       )}
 
-      {/* CARD & RELIC DETAILED INSPECTION MODAL (RIGHT-CLICK) */}
+      {/* CARD & RELIC DETAILED INSPECTION MODAL (1-CLICK OR RIGHT-CLICK) */}
       {inspectedCardData && (
         <CardInspectorModal
           card={inspectedCardData.card}
           opposingCard={inspectedCardData.opposingCard}
           slotIndex={inspectedCardData.slotIndex}
           isPlayer={inspectedCardData.isPlayer}
+          currentSkillIndex={inspectedCardData.isPlayer ? playerActions[inspectedCardData.slotIndex]?.skillIndex : undefined}
+          onSelectSkill={(skillIdx) => {
+            if (inspectedCardData.isPlayer) {
+              handleSelectSkill(inspectedCardData.slotIndex, skillIdx);
+            }
+          }}
+          onRecallCard={() => {
+            handleRecallSlot(inspectedCardData.slotIndex);
+            setInspectedCardData(null);
+          }}
+          recallsRemaining={recallsRemaining}
+          canRecall={inspectedCardData.isPlayer && recallsRemaining > 0 && !isExecutingTurn}
           onClose={() => setInspectedCardData(null)}
         />
       )}

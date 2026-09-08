@@ -60,6 +60,8 @@ export interface MonsterCardViewProps {
   needsSkillSelection?: boolean;
   isActivePlayerSlot?: boolean;
   onSelectActiveSlot?: () => void;
+  onRecall?: () => void;
+  recallsRemaining?: number;
 }
 
 // Dark Fantasy TCG Palettes inspired by Image 2 (Phapoda, Alpino, Peacarp, Abyssal Elk)
@@ -178,6 +180,8 @@ export const MonsterCardView: React.FC<MonsterCardViewProps> = ({
   needsSkillSelection = false,
   isActivePlayerSlot = false,
   onSelectActiveSlot,
+  onRecall,
+  recallsRemaining = 2,
 }) => {
   // 3D Tilt & Specular Glare state
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
@@ -361,6 +365,22 @@ export const MonsterCardView: React.FC<MonsterCardViewProps> = ({
             title="Đổi chỗ làn"
           >
             <ArrowLeftRight className="w-3 h-3" />
+          </button>
+        )}
+
+        {/* QUICK INSPECT BUTTON (1-Click xem chi tiết thẻ bài) */}
+        {!isDead && onInspectCard && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              sound.playCardSelect();
+              onInspectCard();
+            }}
+            className="absolute -top-2.5 -right-2 z-30 p-1 rounded-full border shadow-md bg-slate-900/90 border-slate-700 text-slate-300 hover:text-amber-300 hover:scale-110 transition cursor-pointer"
+            title="Xem chi tiết thẻ bài & bộ kĩ năng (Hoặc nhấp chuột phải)"
+          >
+            <span className="text-[11px] leading-none block px-0.5">🔍</span>
           </button>
         )}
 
@@ -749,33 +769,58 @@ export const MonsterCardView: React.FC<MonsterCardViewProps> = ({
           </>
         )}
 
-        {/* 5. CARD SUB-FOOTER: RELICS & RIGHT-CLICK INSPECT HINT */}
-        <div className="pt-1 border-t border-black/15 flex items-center justify-between text-[9px] sm:text-[10px] font-bold text-slate-700 shrink-0">
+        {/* 5. CARD SUB-FOOTER: RELICS, INLINE RECALL & 1-CLICK INSPECT */}
+        <div className="pt-1 border-t border-black/15 flex items-center justify-between text-[9px] sm:text-[10px] font-bold text-slate-700 shrink-0 gap-1">
           <div
-            className="cursor-pointer hover:text-amber-900 flex items-center gap-1.5"
+            className="cursor-pointer hover:text-amber-900 flex items-center gap-1 shrink-0"
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => {
               e.stopPropagation();
               if (onInspectCard) onInspectCard();
             }}
-            title="Nhấp chuột phải để xem chi tiết thẻ bài & 10 ô Relic"
+            title="Nhấp để xem chi tiết thẻ bài & 10 ô Relic"
           >
             <Sparkles className="w-3 h-3 text-amber-600" />
-            <span>Cổ Vật:</span>
+            <span className="hidden sm:inline">Cổ Vật:</span>
             <span className="text-amber-900 font-mono font-black">{card.equippedRelics.length}/10</span>
           </div>
 
-          <span
-            onMouseDown={(e) => e.stopPropagation()}
-            onClick={(e) => {
-              e.stopPropagation();
-              if (onInspectCard) onInspectCard();
-            }}
-            className="text-[8.5px] sm:text-[9.5px] text-slate-500 hover:text-amber-700 cursor-pointer font-mono"
-            title="Nhấp chuột phải để xem chi tiết"
-          >
-            🖱️ Chuột phải xem chi tiết
-          </span>
+          <div className="flex items-center gap-1 shrink-0">
+            {/* INLINE RECALL BUTTON FOR PLAYER CARDS */}
+            {isPlayer && !isDead && onRecall && (
+              <button
+                type="button"
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRecall();
+                }}
+                className={`px-1.5 py-0.5 rounded text-[8px] sm:text-[9px] font-mono font-bold border flex items-center gap-0.5 transition shadow-xs ${
+                  (recallsRemaining ?? 0) > 0
+                    ? 'bg-emerald-800 hover:bg-emerald-700 text-emerald-100 border-emerald-500 cursor-pointer active:scale-95'
+                    : 'bg-slate-800/60 text-slate-500 border-slate-700/50 cursor-not-allowed'
+                }`}
+                title={(recallsRemaining ?? 0) > 0 ? `Thu hồi về hàng dự bị (Còn ${recallsRemaining}/2)` : 'Đã hết lượt thu hồi'}
+              >
+                <span>↩ Thu Hồi</span>
+                <span className="text-amber-300">({recallsRemaining ?? 2}/2)</span>
+              </button>
+            )}
+
+            {/* 1-CLICK INSPECT BUTTON */}
+            <button
+              type="button"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onInspectCard) onInspectCard();
+              }}
+              className="px-1.5 py-0.5 rounded bg-black/10 hover:bg-black/20 text-slate-700 hover:text-amber-900 cursor-pointer font-mono text-[8px] sm:text-[9px] flex items-center gap-0.5 transition"
+              title="Nhấp chuột trái hoặc phải để xem toàn bộ thông số chi tiết"
+            >
+              <span>🔍 Chi tiết</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
