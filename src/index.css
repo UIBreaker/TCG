@@ -381,9 +381,11 @@
 }
 
 .game-card-root {
-  width: 252px;
-  height: 304px;
-  border-radius: 12px;
+  width: 100%;
+  max-width: 252px;
+  height: auto;
+  min-height: 140px;
+  border-radius: 10px;
   position: relative;
   transform-style: preserve-3d;
   box-shadow: 
@@ -396,7 +398,15 @@
   will-change: transform;
 }
 
-@media (min-height: 760px) {
+@media (min-width: 768px) {
+  .game-card-root {
+    width: 252px;
+    height: 304px;
+    border-radius: 12px;
+  }
+}
+
+@media (min-width: 768px) and (min-height: 760px) {
   .game-card-root {
     width: 275px;
     height: 332px;
@@ -404,7 +414,7 @@
   }
 }
 
-@media (min-height: 880px) {
+@media (min-width: 768px) and (min-height: 880px) {
   .game-card-root {
     width: 295px;
     height: 355px;
@@ -412,7 +422,7 @@
   }
 }
 
-@media (min-height: 1000px) {
+@media (min-width: 768px) and (min-height: 1000px) {
   .game-card-root {
     width: 310px;
     height: 375px;
@@ -506,22 +516,34 @@
 }
 
 .card-art-box {
-  height: 74px;
+  height: 52px;
 }
 
-@media (min-height: 760px) {
+@media (min-width: 640px) {
+  .card-art-box {
+    height: 68px;
+  }
+}
+
+@media (min-width: 768px) {
+  .card-art-box {
+    height: 74px;
+  }
+}
+
+@media (min-width: 768px) and (min-height: 760px) {
   .card-art-box {
     height: 80px;
   }
 }
 
-@media (min-height: 880px) {
+@media (min-width: 768px) and (min-height: 880px) {
   .card-art-box {
     height: 88px;
   }
 }
 
-@media (min-height: 1000px) {
+@media (min-width: 768px) and (min-height: 1000px) {
   .card-art-box {
     height: 96px;
   }

@@ -202,44 +202,50 @@ export const BattleHornSvg: React.FC<{ className?: string }> = ({ className = "w
 export const EndTurnWheel: React.FC<{
   isExecuting: boolean;
   onClick: () => void;
-}> = ({ isExecuting, onClick }) => (
-  <button
-    disabled={isExecuting}
-    onClick={onClick}
-    className={`relative group cursor-pointer select-none transition-transform duration-200 active:scale-95 ${
-      isExecuting ? 'opacity-70 cursor-not-allowed' : ''
-    }`}
-    title="Kết thúc lượt và bắt đầu giao tranh"
-  >
-    {/* Heavy Cast Iron Rim with Rivets */}
-    <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-gradient-to-br from-[#475569] via-[#1e293b] to-[#090d16] p-1.5 sm:p-2 shadow-[0_12px_28px_rgba(0,0,0,0.95),inset_0_2px_4px_rgba(255,255,255,0.4),inset_0_-4px_6px_rgba(0,0,0,0.8)] border-2 border-[#64748b]/50 relative flex items-center justify-center">
-      
-      {/* Brass Rivets around outer rim */}
-      <span className="absolute top-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-gradient-to-b from-yellow-300 to-amber-700 shadow-xs" />
-      <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-gradient-to-b from-yellow-300 to-amber-700 shadow-xs" />
-      <span className="absolute left-1 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-gradient-to-b from-yellow-300 to-amber-700 shadow-xs" />
-      <span className="absolute right-1 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-gradient-to-b from-yellow-300 to-amber-700 shadow-xs" />
-      
-      {/* Inner Rotating / Glowing Rune Ring */}
-      <div className={`w-full h-full rounded-full bg-gradient-to-br from-[#2f3e35] via-[#1c2720] to-[#0f1812] border-2 border-emerald-600/50 p-1 flex items-center justify-center relative overflow-hidden ${
-        isExecuting ? 'animate-spin' : 'group-hover:border-amber-400 group-hover:shadow-[0_0_22px_rgba(251,191,36,0.6)]'
-      }`}>
-        {/* Chiseled Slate Center Disc */}
-        <div className="w-full h-full rounded-full bg-gradient-to-b from-[#3a443e] to-[#1e2521] shadow-inner flex flex-col items-center justify-center border border-emerald-950">
-          <span className="font-fantasy font-black text-amber-100 text-[11px] sm:text-xs xl:text-sm tracking-widest leading-none drop-shadow-[0_2px_2px_rgba(0,0,0,0.9)]">
-            {isExecuting ? 'GIAO' : 'End'}
-          </span>
-          <span className="font-fantasy font-black text-amber-400 text-[11px] sm:text-xs xl:text-sm tracking-widest leading-none drop-shadow-[0_2px_2px_rgba(0,0,0,0.9)] mt-0.5">
-            {isExecuting ? 'ĐẤU...' : 'Turn'}
-          </span>
-          
-          {/* Subtle Rune Underline */}
-          <div className="w-6 sm:w-7 h-0.5 bg-gradient-to-r from-transparent via-amber-400/80 to-transparent mt-0.5" />
+  size?: 'sm' | 'md';
+  className?: string;
+}> = ({ isExecuting, onClick, size = 'md', className = '' }) => {
+  const isSm = size === 'sm';
+  return (
+    <button
+      type="button"
+      disabled={isExecuting}
+      onClick={onClick}
+      className={`relative group cursor-pointer select-none transition-transform duration-200 active:scale-95 touch-manipulation ${
+        isExecuting ? 'opacity-70 cursor-not-allowed' : ''
+      } ${className}`}
+      title="Kết thúc lượt và bắt đầu giao tranh"
+    >
+      {/* Heavy Cast Iron Rim with Rivets */}
+      <div className={`${isSm ? 'w-16 h-16 sm:w-20 sm:h-20' : 'w-20 h-20 sm:w-24 sm:h-24'} rounded-full bg-gradient-to-br from-[#475569] via-[#1e293b] to-[#090d16] p-1 sm:p-2 shadow-[0_12px_28px_rgba(0,0,0,0.95),inset_0_2px_4px_rgba(255,255,255,0.4),inset_0_-4px_6px_rgba(0,0,0,0.8)] border-2 border-[#64748b]/50 relative flex items-center justify-center`}>
+        
+        {/* Brass Rivets around outer rim */}
+        <span className="absolute top-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-gradient-to-b from-yellow-300 to-amber-700 shadow-xs" />
+        <span className="absolute bottom-1 left-1/2 -translate-x-1/2 w-1.5 h-1.5 rounded-full bg-gradient-to-b from-yellow-300 to-amber-700 shadow-xs" />
+        <span className="absolute left-1 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-gradient-to-b from-yellow-300 to-amber-700 shadow-xs" />
+        <span className="absolute right-1 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-gradient-to-b from-yellow-300 to-amber-700 shadow-xs" />
+        
+        {/* Inner Rotating / Glowing Rune Ring */}
+        <div className={`w-full h-full rounded-full bg-gradient-to-br from-[#2f3e35] via-[#1c2720] to-[#0f1812] border-2 border-emerald-600/50 p-0.5 sm:p-1 flex items-center justify-center relative overflow-hidden ${
+          isExecuting ? 'animate-spin' : 'group-hover:border-amber-400 group-hover:shadow-[0_0_22px_rgba(251,191,36,0.6)]'
+        }`}>
+          {/* Chiseled Slate Center Disc */}
+          <div className="w-full h-full rounded-full bg-gradient-to-b from-[#3a443e] to-[#1e2521] shadow-inner flex flex-col items-center justify-center border border-emerald-950">
+            <span className={`font-fantasy font-black text-amber-100 ${isSm ? 'text-[10px] sm:text-xs' : 'text-[11px] sm:text-xs xl:text-sm'} tracking-widest leading-none drop-shadow-[0_2px_2px_rgba(0,0,0,0.9)]`}>
+              {isExecuting ? 'GIAO' : 'End'}
+            </span>
+            <span className={`font-fantasy font-black text-amber-400 ${isSm ? 'text-[10px] sm:text-xs' : 'text-[11px] sm:text-xs xl:text-sm'} tracking-widest leading-none drop-shadow-[0_2px_2px_rgba(0,0,0,0.9)] mt-0.5`}>
+              {isExecuting ? 'ĐẤU...' : 'Turn'}
+            </span>
+            
+            {/* Subtle Rune Underline */}
+            <div className={`${isSm ? 'w-5 sm:w-6' : 'w-6 sm:w-7'} h-0.5 bg-gradient-to-r from-transparent via-amber-400/80 to-transparent mt-0.5`} />
+          </div>
         </div>
       </div>
-    </div>
-  </button>
-);
+    </button>
+  );
+};
 
 // 7. Curled Snail / Fossil Ammonite Shell (Matching Image 1 Left & Right)
 export const SpiralShellSvg: React.FC<{ color?: 'pink' | 'teal'; className?: string }> = ({

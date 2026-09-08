@@ -58,6 +58,8 @@ export interface MonsterCardViewProps {
   onTriggerSwap?: () => void;
   onDisabledSkillClick?: (msg: string) => void;
   needsSkillSelection?: boolean;
+  isActivePlayerSlot?: boolean;
+  onSelectActiveSlot?: () => void;
 }
 
 // Dark Fantasy TCG Palettes inspired by Image 2 (Phapoda, Alpino, Peacarp, Abyssal Elk)
@@ -174,6 +176,8 @@ export const MonsterCardView: React.FC<MonsterCardViewProps> = ({
   onTriggerSwap,
   onDisabledSkillClick,
   needsSkillSelection = false,
+  isActivePlayerSlot = false,
+  onSelectActiveSlot,
 }) => {
   // 3D Tilt & Specular Glare state
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
@@ -290,6 +294,9 @@ export const MonsterCardView: React.FC<MonsterCardViewProps> = ({
           if (!isPlayer && onSelectTarget && !isDead) {
             sound.playCardSelect();
             onSelectTarget();
+          } else if (isPlayer && onSelectActiveSlot && !isDead) {
+            sound.playCardSelect();
+            onSelectActiveSlot();
           }
         }}
         style={{
@@ -305,6 +312,8 @@ export const MonsterCardView: React.FC<MonsterCardViewProps> = ({
         } ${
           isDead ? 'opacity-55 grayscale scale-95' : ''
         } ${isSelectedTarget ? 'is-target' : ''} ${
+          isActivePlayerSlot ? 'ring-2 sm:ring-4 ring-amber-400/90 shadow-[0_0_24px_rgba(245,158,11,0.7)]' : ''
+        } ${
           isDragging ? 'is-dragging' : ''
         } ${
           isDragOver ? 'is-drag-over' : ''
@@ -563,160 +572,186 @@ export const MonsterCardView: React.FC<MonsterCardViewProps> = ({
                 onDisabledSkillClick(`💤 [${card.name}] đang kiệt sức sau khi tung Tuyệt Kỹ! Cần nghỉ ${card.exhaustTurns} lượt nữa mới hồi phục để dùng chiêu.`);
               }
             }}
-            className="flex-1 my-1 p-2 rounded-xl bg-slate-950/80 border-2 border-amber-500/70 shadow-inner flex flex-col items-center justify-center text-center cursor-not-allowed group/exhaust"
+            className="flex-1 my-0.5 sm:my-1 p-1.5 sm:p-2 rounded-xl bg-slate-950/80 border-2 border-amber-500/70 shadow-inner flex flex-col items-center justify-center text-center cursor-not-allowed group/exhaust"
           >
-            <span className="text-2xl animate-pulse mb-0.5">💤</span>
-            <span className="font-fantasy font-black text-xs sm:text-[13px] text-amber-300 uppercase tracking-wide">
-              KIỆT SỨC SAU TUYỆT KỸ
+            <span className="text-xl sm:text-2xl animate-pulse mb-0.5">💤</span>
+            <span className="font-fantasy font-black text-[11px] sm:text-[13px] text-amber-300 uppercase tracking-wide">
+              KIỆT SỨC
             </span>
-            <div className="mt-1 px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400 text-amber-200 font-mono font-black text-[10px] sm:text-[11px] shadow-sm animate-pulse">
-              ⏳ Nghỉ ngơi: còn {card.exhaustTurns} lượt
+            <div className="mt-0.5 px-2 py-0.2 rounded-full bg-amber-500/20 border border-amber-400 text-amber-200 font-mono font-black text-[9px] sm:text-[11px] shadow-sm animate-pulse">
+              ⏳ Còn {card.exhaustTurns} lượt
             </div>
-            <span className="text-[9.5px] text-slate-400 mt-1 font-medium leading-tight">
-              Đang hồi sức, tạm thời không thể tung chiêu
-            </span>
           </div>
         ) : (
-          <div className={`flex flex-col gap-1 sm:gap-1.5 my-1 flex-1 justify-center relative p-0.5 rounded-lg transition-all ${
-            isPlayer && !isDead && needsSkillSelection ? 'ring-2 ring-amber-400 bg-amber-950/20' : ''
-          }`}>
-            {isPlayer && !isDead && needsSkillSelection && (
-              <div className="text-center font-black text-[8px] sm:text-[8.5px] text-amber-950 bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-300 rounded py-0.5 uppercase tracking-wider shadow-xs mb-0.5 animate-pulse">
-                👉 Hãy chọn chiêu thức
-              </div>
-            )}
-            {card.skills.map((skill, sIdx) => {
-              const isSelected = isPlayer && currentAction?.skillIndex === sIdx;
-              const isEnemyPlanned = !isPlayer && enemyIntent && enemyIntent.skillName === skill.name;
-              const isUlt = skill.isUltimate || sIdx === 2;
-              const isUltUsed = card.ultimateUsed || skill.usedThisCombat;
-              const onCooldown = (skill.currentCooldown || 0) > 0 && !isUlt;
-
-              return (
-                <div
-                  key={sIdx}
-                  draggable={false}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onTouchStart={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (isPlayer && !isDead) {
-                      if (onCooldown) {
-                        sound.playCardSelect();
-                        if (onDisabledSkillClick) {
-                          onDisabledSkillClick(`⏳ Kỹ năng [${skill.name}] đang hồi chiêu (còn ${skill.currentCooldown} lượt)! Hãy chọn kỹ năng khác.`);
-                        }
-                      } else if (isUltUsed) {
-                        sound.playCardSelect();
-                        if (onDisabledSkillClick) {
-                          onDisabledSkillClick(`👑 Tuyệt kỹ [${skill.name}] chỉ dùng 1 lần mỗi trận và đã sử dụng! Hãy chọn kỹ năng khác.`);
-                        }
-                      } else if (isUlt && !isUltUnlocked) {
-                        sound.playCardSelect();
-                        if (onDisabledSkillClick) {
-                          onDisabledSkillClick(`🔒 Tuyệt kỹ đang khóa! Cần đánh đủ 2 đòn, Máu <50% hoặc tích lũy đủ 3 Nộ ẩn (Hiện có: ${card.hitsDealt || 0} đòn, ${card.hiddenRage || 0} Nộ).`);
-                        }
-                      } else if (onSelectSkill) {
-                        sound.playCardSelect();
-                        onSelectSkill(sIdx as 0 | 1 | 2);
-                      }
-                    }
-                  }}
-                  onMouseEnter={(e) => {
-                    if (onHoverSkill && card) {
-                      const r = e.currentTarget.getBoundingClientRect();
-                      onHoverSkill({
-                        skill,
-                        monsterName: card.name,
-                        element: card.element,
-                        hasCleave,
-                        hasBurn,
-                        isPlayer,
-                        slotIndex,
-                        skillIndex: sIdx as 0 | 1 | 2,
-                        rect: { top: r.top, left: r.left, width: r.width, height: r.height, bottom: r.bottom, right: r.right },
-                      });
-                    }
-                  }}
-                  onMouseLeave={() => {
-                    if (onHoverSkill) onHoverSkill(null);
-                  }}
-                  className={`skill-action-slab px-2.5 py-1.5 sm:py-2 rounded-lg border transition-all relative ${
-                    isPlayer && !isDead && !onCooldown && !isUltUsed && (!isUlt || isUltUnlocked) ? 'cursor-pointer hover:brightness-105 active:scale-[0.98]' : ''
-                  } ${
-                    isUlt
-                      ? isUltUsed
-                        ? 'bg-slate-200/80 border-slate-400/60 opacity-40 cursor-not-allowed'
-                        : !isUltUnlocked
-                        ? 'bg-slate-900/40 border-slate-700/60 text-slate-500 opacity-60 cursor-not-allowed'
-                        : isSelected
-                        ? 'bg-amber-200 border-amber-600 ring-2 ring-amber-500 shadow-md'
-                        : isEnemyPlanned
-                        ? 'bg-rose-100 border-rose-500 ring-2 ring-rose-500'
-                        : 'bg-gradient-to-r from-amber-50 via-amber-100 to-yellow-50 border-amber-400 shadow-xs ring-1 ring-amber-400/50'
-                      : isSelected
-                      ? palette.skillSelectedBg
-                      : isEnemyPlanned
-                      ? 'bg-rose-100/95 border-rose-500 ring-2 ring-rose-500'
-                      : palette.skillBg
-                  } ${onCooldown ? 'opacity-50 cursor-not-allowed' : ''}`}
-                >
-                  <div className="flex items-center justify-between gap-1.5 leading-none">
-                    {/* Left: Energy Pip & Name */}
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className={`text-[8.5px] sm:text-[9.5px] font-mono font-black px-1.5 py-0.5 rounded shrink-0 ${
-                        isUlt
-                          ? isUltUsed
-                            ? 'bg-slate-700 text-slate-300'
-                            : isUltUnlocked
-                            ? 'bg-amber-900 text-amber-100 ring-1 ring-amber-400 animate-pulse'
-                            : 'bg-black/30 text-slate-500'
-                          : 'bg-black/10 text-slate-800'
-                      }`}>
-                        {isUlt
-                          ? isUltUsed
-                            ? '👑 ĐÃ DÙNG'
-                            : isUltUnlocked
-                            ? '⭐ TUYỆT KỸ'
-                            : '🔒 KHÓA'
-                          : onCooldown
-                          ? `⏳${skill.currentCooldown}T`
-                          : sIdx === 0
-                          ? '⚡0'
-                          : '⚡1'}
-                      </span>
-                      <span className="font-black text-xs sm:text-[13px] text-slate-900 whitespace-nowrap">
-                        {skill.name}
-                      </span>
-                    </div>
-
-                    {/* Right: State & Action Power */}
-                    <div className="flex items-center gap-1 shrink-0">
-                      {isSelected && isPlayer && (
-                        <span className="px-1.5 py-0.5 rounded bg-amber-600 text-white font-black text-[8px] sm:text-[8.5px] uppercase tracking-tight flex items-center gap-0.5 shadow-xs">
-                          <span>✓</span>
-                          <span>ĐÃ CHỌN</span>
-                        </span>
-                      )}
-                      {isEnemyPlanned && (
-                        <span className="px-1.5 py-0.5 rounded bg-red-600 text-white font-bold text-[8px] sm:text-[8.5px] uppercase tracking-tight animate-pulse">
-                          Đánh
-                        </span>
-                      )}
-                      <span className="font-mono font-black text-[10px] sm:text-[11px] text-slate-950 px-1.5 py-0.5 rounded bg-white/70 shadow-xs">
-                        {skill.baseDamage > 0
-                          ? `⚔${skill.baseDamage}`
-                          : skill.healAmount
-                          ? `💚+${skill.healAmount}`
-                          : '🛡Giáp'}
-                      </span>
-                    </div>
-                  </div>
+          <>
+            {/* MOBILE COMPACT INTENT / SKILL PREVIEW (md:hidden) */}
+            <div className="md:hidden w-full my-0.5">
+              {!isPlayer && enemyIntent && !isDead ? (
+                <div className="w-full px-1.5 py-0.5 rounded bg-red-950/90 border border-red-500/70 flex items-center justify-between text-[9px] font-mono text-red-200 shadow-xs">
+                  <span className="truncate font-fantasy font-black text-red-100">
+                    ⚔️ {enemyIntent.skillName}
+                  </span>
+                  <span className="font-bold text-amber-300 ml-1 shrink-0">
+                    {enemyIntent.damage} ST
+                  </span>
                 </div>
-              );
-            })}
-          </div>
+              ) : isPlayer && !isDead ? (
+                <div className="w-full px-1.5 py-0.5 rounded bg-slate-900/90 border border-amber-500/70 flex items-center justify-between text-[9px] font-mono text-amber-200 shadow-xs">
+                  <span className="truncate font-fantasy font-black text-amber-100 flex items-center gap-1">
+                    <span>{currentAction?.skillIndex === 2 ? '⭐' : '⚡'}</span>
+                    <span className="truncate">{card.skills[currentAction?.skillIndex || 0]?.name || 'Chiêu cơ bản'}</span>
+                  </span>
+                  <span className="font-black text-amber-300 ml-1 shrink-0">
+                    {card.skills[currentAction?.skillIndex || 0]?.baseDamage > 0
+                      ? `⚔${card.skills[currentAction?.skillIndex || 0]?.baseDamage}`
+                      : card.skills[currentAction?.skillIndex || 0]?.healAmount
+                      ? `💚+${card.skills[currentAction?.skillIndex || 0]?.healAmount}`
+                      : '🛡'}
+                  </span>
+                </div>
+              ) : null}
+            </div>
+
+            {/* DESKTOP FULL 3-SKILL SLABS (hidden md:flex) */}
+            <div className={`hidden md:flex flex-col gap-1 sm:gap-1.5 my-1 flex-1 justify-center relative p-0.5 rounded-lg transition-all ${
+              isPlayer && !isDead && needsSkillSelection ? 'ring-2 ring-amber-400 bg-amber-950/20' : ''
+            }`}>
+              {isPlayer && !isDead && needsSkillSelection && (
+                <div className="text-center font-black text-[8px] sm:text-[8.5px] text-amber-950 bg-gradient-to-r from-amber-300 via-yellow-200 to-amber-300 rounded py-0.5 uppercase tracking-wider shadow-xs mb-0.5 animate-pulse">
+                  👉 Hãy chọn chiêu thức
+                </div>
+              )}
+              {card.skills.map((skill, sIdx) => {
+                const isSelected = isPlayer && currentAction?.skillIndex === sIdx;
+                const isEnemyPlanned = !isPlayer && enemyIntent && enemyIntent.skillName === skill.name;
+                const isUlt = skill.isUltimate || sIdx === 2;
+                const isUltUsed = card.ultimateUsed || skill.usedThisCombat;
+                const onCooldown = (skill.currentCooldown || 0) > 0 && !isUlt;
+
+                return (
+                  <button
+                    type="button"
+                    key={sIdx}
+                    draggable={false}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (isPlayer && !isDead) {
+                        if (onCooldown) {
+                          sound.playCardSelect();
+                          if (onDisabledSkillClick) {
+                            onDisabledSkillClick(`⏳ Kỹ năng [${skill.name}] đang hồi chiêu (còn ${skill.currentCooldown} lượt)! Hãy chọn kỹ năng khác.`);
+                          }
+                        } else if (isUltUsed) {
+                          sound.playCardSelect();
+                          if (onDisabledSkillClick) {
+                            onDisabledSkillClick(`👑 Tuyệt kỹ [${skill.name}] chỉ dùng 1 lần mỗi trận và đã sử dụng! Hãy chọn kỹ năng khác.`);
+                          }
+                        } else if (isUlt && !isUltUnlocked) {
+                          sound.playCardSelect();
+                          if (onDisabledSkillClick) {
+                            onDisabledSkillClick(`🔒 Tuyệt kỹ đang khóa! Cần đánh đủ 2 đòn, Máu <50% hoặc tích lũy đủ 3 Nộ ẩn (Hiện có: ${card.hitsDealt || 0} đòn, ${card.hiddenRage || 0} Nộ).`);
+                          }
+                        } else if (onSelectSkill) {
+                          sound.playCardSelect();
+                          onSelectSkill(sIdx as 0 | 1 | 2);
+                        }
+                      }
+                    }}
+                    onMouseEnter={(e) => {
+                      if (onHoverSkill && card) {
+                        const r = e.currentTarget.getBoundingClientRect();
+                        onHoverSkill({
+                          skill,
+                          monsterName: card.name,
+                          element: card.element,
+                          hasCleave,
+                          hasBurn,
+                          isPlayer,
+                          slotIndex,
+                          skillIndex: sIdx as 0 | 1 | 2,
+                          rect: { top: r.top, left: r.left, width: r.width, height: r.height, bottom: r.bottom, right: r.right },
+                        });
+                      }
+                    }}
+                    onMouseLeave={() => {
+                      if (onHoverSkill) onHoverSkill(null);
+                    }}
+                    className={`w-full text-left skill-action-slab px-2.5 py-1.5 sm:py-2 rounded-lg border transition-all relative touch-manipulation ${
+                      isPlayer && !isDead && !onCooldown && !isUltUsed && (!isUlt || isUltUnlocked) ? 'cursor-pointer hover:brightness-105 active:scale-[0.98]' : ''
+                    } ${
+                      isUlt
+                        ? isUltUsed
+                          ? 'bg-slate-200/80 border-slate-400/60 opacity-40 cursor-not-allowed'
+                          : !isUltUnlocked
+                          ? 'bg-slate-900/40 border-slate-700/60 text-slate-500 opacity-60 cursor-not-allowed'
+                          : isSelected
+                          ? 'bg-amber-200 border-amber-600 ring-2 ring-amber-500 shadow-md'
+                          : isEnemyPlanned
+                          ? 'bg-rose-100 border-rose-500 ring-2 ring-rose-500'
+                          : 'bg-gradient-to-r from-amber-50 via-amber-100 to-yellow-50 border-amber-400 shadow-xs ring-1 ring-amber-400/50'
+                        : isSelected
+                        ? palette.skillSelectedBg
+                        : isEnemyPlanned
+                        ? 'bg-rose-100/95 border-rose-500 ring-2 ring-rose-500'
+                        : palette.skillBg
+                    } ${onCooldown ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    <div className="flex items-center justify-between gap-1.5 leading-none">
+                      {/* Left: Energy Pip & Name */}
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className={`text-[8.5px] sm:text-[9.5px] font-mono font-black px-1.5 py-0.5 rounded shrink-0 ${
+                          isUlt
+                            ? isUltUsed
+                              ? 'bg-slate-700 text-slate-300'
+                              : isUltUnlocked
+                              ? 'bg-amber-900 text-amber-100 ring-1 ring-amber-400 animate-pulse'
+                              : 'bg-black/30 text-slate-500'
+                            : 'bg-black/10 text-slate-800'
+                        }`}>
+                          {isUlt
+                            ? isUltUsed
+                              ? '👑 ĐÃ DÙNG'
+                              : isUltUnlocked
+                              ? '⭐ TUYỆT KỸ'
+                              : '🔒 KHÓA'
+                            : onCooldown
+                            ? `⏳${skill.currentCooldown}T`
+                            : sIdx === 0
+                            ? '⚡0'
+                            : '⚡1'}
+                        </span>
+                        <span className="font-black text-xs sm:text-[13px] text-slate-900 whitespace-nowrap">
+                          {skill.name}
+                        </span>
+                      </div>
+
+                      {/* Right: State & Action Power */}
+                      <div className="flex items-center gap-1 shrink-0">
+                        {isSelected && isPlayer && (
+                          <span className="px-1.5 py-0.5 rounded bg-amber-600 text-white font-black text-[8px] sm:text-[8.5px] uppercase tracking-tight flex items-center gap-0.5 shadow-xs">
+                            <span>✓</span>
+                            <span>ĐÃ CHỌN</span>
+                          </span>
+                        )}
+                        {isEnemyPlanned && (
+                          <span className="px-1.5 py-0.5 rounded bg-red-600 text-white font-bold text-[8px] sm:text-[8.5px] uppercase tracking-tight animate-pulse">
+                            Đánh
+                          </span>
+                        )}
+                        <span className="font-mono font-black text-[10px] sm:text-[11px] text-slate-950 px-1.5 py-0.5 rounded bg-white/70 shadow-xs">
+                          {skill.baseDamage > 0
+                            ? `⚔${skill.baseDamage}`
+                            : skill.healAmount
+                            ? `💚+${skill.healAmount}`
+                            : '🛡Giáp'}
+                        </span>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </>
         )}
 
         {/* 5. CARD SUB-FOOTER: RELICS & RIGHT-CLICK INSPECT HINT */}

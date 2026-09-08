@@ -204,6 +204,7 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
   const [swapSelectedSlot, setSwapSelectedSlot] = useState<number | null>(null);
   const [draggedReserveIdx, setDraggedReserveIdx] = useState<number | null>(null);
   const [selectedReserveIdx, setSelectedReserveIdx] = useState<number | null>(null);
+  const [showMobileHandDrawer, setShowMobileHandDrawer] = useState<boolean>(false);
 
   // Right-click inspected card modal state
   const [inspectedCardData, setInspectedCardData] = useState<{
@@ -500,44 +501,55 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
     return () => timers.forEach(clearTimeout);
   };
 
-  // MAIN: End Turn Button Clicked
+  // MAIN: End Turn Button Clicked (Instant 1-Click Execution)
   const handleEndTurn = () => {
     if (isExecutingTurn) return;
 
-    // VALIDATION: Require that player has selected a skill for every alive, non-exhausted monster!
-    const alivePlayerSlots = playerParty
-      .slice(0, 3)
-      .map((c, idx) => (c && c.hp > 0 ? idx : null))
-      .filter((idx): idx is number => idx !== null);
+    // Normalize actions for all actionable slots: ensure valid skillIndex & alive target
+    const finalPlayerActions = playerActions.map((action, slotIdx) => {
+      const card = playerParty[slotIdx];
+      if (!card || card.hp <= 0) return action;
 
-    // Filter out exhausted monsters (resting 2 turns after Ultimate)
-    const actionableSlots = alivePlayerSlots.filter(idx => {
-      const card = playerParty[idx];
-      return card && (!card.exhaustTurns || card.exhaustTurns <= 0);
+      let validSkillIdx: 0 | 1 | 2 = action.skillIndex;
+      const plannedSkill = card.skills[validSkillIdx];
+      const isUlt = plannedSkill?.isUltimate || validSkillIdx === 2;
+      const isUltUsed = card.ultimateUsed || plannedSkill?.usedThisCombat;
+      const isUltUnlocked = (card.hitsDealt || 0) >= 2 || (card.hp / card.maxHp) < 0.5 || (card.hiddenRage || 0) >= 3;
+      const onCd = (plannedSkill?.currentCooldown || 0) > 0 && !isUlt;
+
+      if (onCd || isUltUsed || (isUlt && !isUltUnlocked)) {
+        validSkillIdx = 0;
+      }
+
+      let targetSlot = action.targetSlotIndex;
+      const currentTarget = enemyParty[targetSlot];
+      if (!currentTarget || currentTarget.hp <= 0) {
+        let nearestDist = 999;
+        let bestSlot = 0;
+        let foundAlive = false;
+        enemyParty.forEach((e, eIdx) => {
+          if (e && e.hp > 0) {
+            const dist = Math.abs(eIdx - slotIdx);
+            if (dist < nearestDist) {
+              nearestDist = dist;
+              bestSlot = eIdx;
+              foundAlive = true;
+            }
+          }
+        });
+        if (foundAlive) targetSlot = bestSlot;
+      }
+
+      return {
+        skillIndex: validSkillIdx,
+        targetSlotIndex: targetSlot,
+      };
     });
 
-    const unselectedSlots = actionableSlots.filter(idx => !slotSkillChosenThisTurn[idx]);
-    if (unselectedSlots.length > 0) {
-      const unselectedNames = unselectedSlots.map(idx => playerParty[idx]?.name || `Làn ${idx + 1}`).join(', ');
-      sound.playCardSelect();
-      setBannerNotice(`⚠️ [${unselectedNames}] chưa chọn chiêu! Đã tự chọn Kỹ Năng Cơ Bản (⚡0) — Bấm Kết Thúc Lượt để đánh ngay hoặc nhấp đổi chiêu.`);
-      
-      // Auto-assign basic skill 0 to unselected slots and mark them chosen so the game never freezes
-      setPlayerActions(prev =>
-        prev.map((act, sIdx) =>
-          unselectedSlots.includes(sIdx) ? { ...act, skillIndex: 0 } : act
-        )
-      );
-      setSlotSkillChosenThisTurn(prev => {
-        const next = { ...prev };
-        unselectedSlots.forEach(s => { next[s] = true; });
-        return next;
-      });
-      setActiveSlotConfig(unselectedSlots[0]);
-      setTimeout(() => setBannerNotice(null), 3500);
-      return;
-    }
+    setPlayerActions(finalPlayerActions);
+    setSlotSkillChosenThisTurn({ 0: true, 1: true, 2: true });
 
+    // Execute immediately in 1 click!
     sound.playEndTurn();
     setIsExecutingTurn(true);
     setBannerNotice('⚔️ GIẢI QUYẾT LƯỢT: TỪ TRÁI QUA PHẢI (SLOT 1 ➔ 3) - TỐC ĐỘ CAO RA ĐÒN TRƯỚC!');
@@ -549,7 +561,7 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
     const turnResult = resolveCombatTurn(
       playerParty,
       enemyParty,
-      playerActions,
+      finalPlayerActions,
       currentEnemyActions,
       turnCounter,
       isBoss,
@@ -674,6 +686,7 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
   };
 
   const selectedTargetForActiveCard = playerActions[activeSlotConfig]?.targetSlotIndex ?? 0;
+  const activePlayerCard = playerParty[activeSlotConfig];
 
   return (
     <div className={`w-full h-[calc(100vh-44px)] max-h-[calc(100vh-44px)] mossy-table-bg text-slate-100 relative flex flex-col justify-between py-1 px-2 sm:px-4 lg:px-6 overflow-hidden select-none border-t border-emerald-950 ${
@@ -876,6 +889,8 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
                       dealDelay={isDealingCards ? 320 + slotIdx * 80 : undefined}
                       currentAction={currentAction}
                       needsSkillSelection={needsSkillSelection}
+                      isActivePlayerSlot={activeSlotConfig === slotIdx}
+                      onSelectActiveSlot={() => setActiveSlotConfig(slotIdx)}
                       onSelectSkill={(skillIdx) => handleSelectSkill(slotIdx, skillIdx)}
                       onDisabledSkillClick={(reason) => {
                         setBannerNotice(reason);
@@ -932,9 +947,8 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
           </div>
         </div>
 
-        {/* RIGHT FLANK: TURQUOISE SHELL + GRAND STONE END TURN WHEEL (Image 1 Style) */}
-        {/* RIGHT FLANK: TURQUOISE SHELL + GRAND STONE END TURN WHEEL (Image 1 Style) */}
-        <div className="flex flex-col justify-center items-center h-full w-20 sm:w-28 shrink-0 z-30 gap-3">
+        {/* RIGHT FLANK: TURQUOISE SHELL + GRAND STONE END TURN WHEEL (Desktop Only) */}
+        <div className="hidden md:flex flex-col justify-center items-center h-full w-20 sm:w-28 shrink-0 z-30 gap-3">
           <SpiralShellSvg color="teal" className="w-12 h-12 sm:w-14 sm:h-14 drop-shadow-lg -rotate-12 hidden lg:block" />
           <EndTurnWheel
             isExecuting={isExecutingTurn}
@@ -943,8 +957,8 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
         </div>
       </div>
 
-      {/* BOTTOM ROW: Backpack & Deck (Left) | Hand Cards (Center) | Horn & Deck (Right) */}
-      <div className="w-full max-w-[1360px] mx-auto flex items-end justify-between z-30 shrink-0 px-2 sm:px-4">
+      {/* BOTTOM ROW (DESKTOP): Backpack & Deck (Left) | Hand Cards (Center) | Horn & Deck (Right) */}
+      <div className="hidden md:flex w-full max-w-[1360px] mx-auto items-end justify-between z-30 shrink-0 px-2 sm:px-4">
         
         {/* BOTTOM LEFT: BACKPACK + CARD DECK STAND (Image 1 Style) */}
         <div
@@ -1112,6 +1126,280 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
             </span>
           </div>
         </div>
+      </div>
+
+      {/* ================= MOBILE TACTICAL COMMAND DECK (md:hidden) ================= */}
+      <div className="md:hidden w-full z-30 shrink-0 bg-gradient-to-t from-slate-950 via-slate-950/98 to-slate-900/95 border-t border-amber-600/60 shadow-[0_-8px_25px_rgba(0,0,0,0.9)] backdrop-blur-xl px-1.5 py-1 flex flex-col gap-1">
+        
+        {/* ROW 1: LANE SELECTOR TABS */}
+        <div className="grid grid-cols-3 gap-1 w-full">
+          {[0, 1, 2].map(slotIdx => {
+            const card = playerParty[slotIdx];
+            const isActive = activeSlotConfig === slotIdx;
+            const isAlive = card && card.hp > 0;
+            const action = playerActions[slotIdx];
+
+            return (
+              <button
+                key={slotIdx}
+                type="button"
+                onClick={() => {
+                  sound.playCardSelect();
+                  setActiveSlotConfig(slotIdx);
+                }}
+                className={`px-1.5 py-0.5 rounded-lg border transition-all flex items-center justify-between text-left touch-manipulation relative overflow-hidden ${
+                  isActive
+                    ? 'bg-gradient-to-r from-amber-950/95 to-slate-900 border-amber-400 ring-2 ring-amber-400/70 shadow-[0_0_12px_rgba(245,158,11,0.5)]'
+                    : card
+                    ? 'bg-slate-900/80 border-slate-700/70 text-slate-300 hover:border-slate-500'
+                    : 'bg-emerald-950/40 border-dashed border-emerald-600/40 text-emerald-400/80'
+                }`}
+              >
+                <div className="flex items-center gap-1 min-w-0">
+                  <span className="text-sm shrink-0">{card ? card.avatar : '➕'}</span>
+                  <div className="flex flex-col min-w-0 leading-tight">
+                    <span className={`text-[9.5px] font-fantasy font-black truncate ${isActive ? 'text-amber-200' : 'text-slate-200'}`}>
+                      {card ? card.name : `Làn ${slotIdx + 1}`}
+                    </span>
+                    {card && isAlive ? (
+                      <span className="text-[8px] font-mono font-bold text-rose-300">
+                        ❤️{card.hp} {card.shield > 0 ? `🛡${card.shield}` : ''}
+                      </span>
+                    ) : card ? (
+                      <span className="text-[7.5px] font-mono text-slate-500 font-bold">💀 Tử trận</span>
+                    ) : (
+                      <span className="text-[7.5px] font-mono text-emerald-400">Trống</span>
+                    )}
+                  </div>
+                </div>
+
+                {card && isAlive && (
+                  <span className={`text-[7.5px] font-mono font-black px-1 py-0.2 rounded shrink-0 ${
+                    action?.skillIndex === 2
+                      ? 'bg-amber-400 text-slate-950'
+                      : 'bg-slate-800 text-amber-300'
+                  }`}>
+                    {action?.skillIndex === 2 ? '⭐' : `⚡${action?.skillIndex || 0}`}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* ROW 2: ACTIVE MONSTER SKILL SELECTION & END TURN BUTTON */}
+        <div className="flex items-center gap-1.5 w-full">
+          {/* Skill Selector (3 buttons) */}
+          <div className="flex-1 grid grid-cols-3 gap-1">
+            {activePlayerCard && activePlayerCard.hp > 0 ? (
+              activePlayerCard.exhaustTurns && activePlayerCard.exhaustTurns > 0 ? (
+                <div
+                  onClick={() => {
+                    setBannerNotice(`💤 [${activePlayerCard.name}] đang kiệt sức sau Tuyệt Kỹ (còn ${activePlayerCard.exhaustTurns} lượt)!`);
+                    setTimeout(() => setBannerNotice(null), 3000);
+                  }}
+                  className="col-span-3 h-14 rounded-lg bg-slate-950/80 border border-amber-500/60 p-1 flex items-center justify-center gap-2 text-center"
+                >
+                  <span className="text-xl animate-pulse">💤</span>
+                  <div className="flex flex-col text-left">
+                    <span className="font-fantasy font-black text-xs text-amber-300 uppercase">Kiệt Sức Sau Tuyệt Kỹ</span>
+                    <span className="text-[9px] text-slate-400 font-mono">Cần nghỉ ngơi: còn {activePlayerCard.exhaustTurns} lượt</span>
+                  </div>
+                </div>
+              ) : (
+                activePlayerCard.skills.map((skill, sIdx) => {
+                  const isSelected = playerActions[activeSlotConfig]?.skillIndex === sIdx;
+                  const isUlt = skill.isUltimate || sIdx === 2;
+                  const isUltUsed = activePlayerCard.ultimateUsed || skill.usedThisCombat;
+                  const isUltUnlocked = (activePlayerCard.hitsDealt || 0) >= 2 || (activePlayerCard.hp / activePlayerCard.maxHp) < 0.5 || (activePlayerCard.hiddenRage || 0) >= 3;
+                  const onCooldown = (skill.currentCooldown || 0) > 0 && !isUlt;
+                  const isDisabled = onCooldown || isUltUsed || (isUlt && !isUltUnlocked);
+
+                  return (
+                    <button
+                      type="button"
+                      key={sIdx}
+                      onClick={() => {
+                        if (onCooldown) {
+                          sound.playCardSelect();
+                          setBannerNotice(`⏳ Kỹ năng [${skill.name}] đang hồi chiêu (còn ${skill.currentCooldown} lượt)!`);
+                          setTimeout(() => setBannerNotice(null), 3000);
+                        } else if (isUltUsed) {
+                          sound.playCardSelect();
+                          setBannerNotice(`👑 Tuyệt kỹ [${skill.name}] chỉ dùng 1 lần mỗi trận!`);
+                          setTimeout(() => setBannerNotice(null), 3000);
+                        } else if (isUlt && !isUltUnlocked) {
+                          sound.playCardSelect();
+                          setBannerNotice(`🔒 Tuyệt kỹ đang khóa! Cần 2 đòn đánh / Máu <50% / 3 Nộ.`);
+                          setTimeout(() => setBannerNotice(null), 3000);
+                        } else {
+                          handleSelectSkill(activeSlotConfig, sIdx as 0 | 1 | 2);
+                        }
+                      }}
+                      className={`h-14 rounded-lg border p-1 flex flex-col justify-between text-left relative transition-all touch-manipulation active:scale-95 select-none ${
+                        isSelected
+                          ? 'bg-gradient-to-b from-amber-500/30 via-amber-950/80 to-slate-950 border-amber-400 ring-2 ring-amber-400/80 shadow-[0_0_14px_rgba(245,158,11,0.6)]'
+                          : isUlt
+                          ? 'bg-gradient-to-b from-yellow-950/30 to-slate-950 border-yellow-600/50 text-amber-200'
+                          : 'bg-slate-900/90 border-slate-700/80 text-slate-200'
+                      } ${isDisabled ? 'opacity-40 grayscale cursor-not-allowed' : 'cursor-pointer'}`}
+                    >
+                      <div className="flex items-center justify-between w-full leading-none">
+                        <span className={`text-[7.5px] font-mono font-black px-1 py-0.2 rounded leading-none ${
+                          isUlt
+                            ? isUltUsed ? 'bg-slate-700 text-slate-300' : isUltUnlocked ? 'bg-amber-400 text-slate-950' : 'bg-slate-800 text-slate-400'
+                            : onCooldown ? 'bg-red-950 text-red-300 border border-red-500/50' : sIdx === 0 ? 'bg-emerald-900/90 text-emerald-200' : 'bg-cyan-900/90 text-cyan-200'
+                        }`}>
+                          {isUlt
+                            ? isUltUsed ? 'ĐÃ DÙNG' : isUltUnlocked ? '⭐ TUYỆT KỸ' : '🔒 KHÓA'
+                            : onCooldown ? `⏳${skill.currentCooldown}L` : sIdx === 0 ? '⚡ CƠ BẢN' : '⚡ ĐẶC BIỆT'}
+                        </span>
+                        {isSelected && (
+                          <span className="text-[7.5px] font-black text-amber-400">✓</span>
+                        )}
+                      </div>
+
+                      <span className="font-fantasy font-black text-[10px] leading-tight truncate text-amber-100 my-0.5">
+                        {skill.name}
+                      </span>
+
+                      <div className="flex items-center justify-between w-full text-[8.5px] font-mono font-bold leading-none">
+                        <span className="text-amber-300">
+                          {skill.baseDamage > 0
+                            ? `⚔${skill.baseDamage}`
+                            : skill.healAmount ? `💚+${skill.healAmount}` : '🛡Giáp'}
+                        </span>
+                        {isSelected && (
+                          <span className="text-[7px] font-black text-amber-400 uppercase tracking-tighter">ĐANG CHỌN</span>
+                        )}
+                      </div>
+                    </button>
+                  );
+                })
+              )
+            ) : (
+              <div className="col-span-3 h-14 rounded-lg border border-dashed border-emerald-600/50 bg-emerald-950/30 flex items-center justify-center p-1 text-center text-[10px] font-fantasy text-emerald-300">
+                {activePlayerCard ? 'Quái thú đã tử trận' : 'Làn này trống — Bấm "🃏 Trên tay" để chọn quái xuất trận!'}
+              </div>
+            )}
+          </div>
+
+          {/* End Turn Wheel right by thumb */}
+          <div className="shrink-0 flex flex-col items-center">
+            <EndTurnWheel
+              size="sm"
+              isExecuting={isExecutingTurn}
+              onClick={handleEndTurn}
+            />
+          </div>
+        </div>
+
+        {/* ROW 3: UTILITY ACTION BUTTONS (Hand Drawer, Inventory, Recall, Log) */}
+        <div className="flex items-center justify-between w-full pt-0.5 border-t border-slate-800/80 text-[9.5px] font-mono">
+          <button
+            type="button"
+            onClick={() => setShowMobileHandDrawer(prev => !prev)}
+            className={`px-2 py-0.5 rounded-lg border font-bold flex items-center gap-1 transition ${
+              showMobileHandDrawer
+                ? 'bg-amber-950 border-amber-400 text-amber-200 ring-1 ring-amber-400/50'
+                : 'bg-slate-900 border-slate-700 text-slate-300'
+            }`}
+          >
+            <span>🃏 Trên tay ({reserveRoster.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              sound.playCardSelect();
+              onOpenInventory?.();
+            }}
+            className="px-2 py-0.5 rounded-lg bg-amber-950/70 border border-amber-500/60 text-amber-300 font-bold flex items-center gap-1 transition active:scale-95"
+          >
+            <BackpackSvg className="w-3.5 h-3.5 inline" />
+            <span>Túi ({gold}G)</span>
+          </button>
+
+          {activePlayerCard && activePlayerCard.hp > 0 && !isExecutingTurn && (
+            <button
+              type="button"
+              onClick={() => handleRecallSlot(activeSlotConfig)}
+              className={`px-2 py-0.5 rounded-lg border font-bold flex items-center gap-1 transition ${
+                recallsRemaining > 0
+                  ? 'bg-emerald-950 border-emerald-500/70 text-emerald-200'
+                  : 'bg-slate-900 border-slate-800 text-slate-600 cursor-not-allowed'
+              }`}
+            >
+              <span>Thu hồi ({recallsRemaining}/2)</span>
+            </button>
+          )}
+
+          <button
+            type="button"
+            onClick={() => {
+              sound.playCardSelect();
+              setShowLogDrawer(prev => !prev);
+            }}
+            className="px-2 py-0.5 rounded-lg bg-slate-900 border border-slate-700 text-slate-300 font-bold flex items-center gap-1 transition"
+          >
+            <GrimoireSvg className="w-3.5 h-3.5 inline" />
+            <span>Nhật ký</span>
+          </button>
+        </div>
+
+        {/* MOBILE SLIDE-UP HAND TRAY DRAWER */}
+        {showMobileHandDrawer && reserveRoster.length > 0 && (
+          <div className="w-full pt-1.5 pb-0.5 border-t border-emerald-700/60 animate-in slide-in-from-bottom duration-200 flex flex-col gap-1">
+            <div className="flex items-center justify-between text-[9px] font-mono text-emerald-300 px-1">
+              <span>Chạm thẻ trên tay rồi chạm Làn trống trên sân để xuất trận:</span>
+              <button
+                type="button"
+                onClick={() => setShowMobileHandDrawer(false)}
+                className="text-slate-400 hover:text-white px-1.5 py-0.2 rounded bg-slate-800"
+              >
+                Đóng ✕
+              </button>
+            </div>
+            <div className="flex items-center gap-2 overflow-x-auto py-1 px-1">
+              {reserveRoster.map((resCard, rIdx) => {
+                const isSelected = selectedReserveIdx === rIdx;
+                const elemStyle = HAND_CARD_STYLES[resCard.element] || HAND_CARD_STYLES.nature;
+                const tierInfo = TIERS[resCard.tier || 'C'] || TIERS.C;
+
+                return (
+                  <div
+                    key={resCard.id || rIdx}
+                    onClick={() => {
+                      if (selectedReserveIdx === rIdx) {
+                        setSelectedReserveIdx(null);
+                      } else {
+                        setSelectedReserveIdx(rIdx);
+                        sound.playCardSelect();
+                      }
+                    }}
+                    style={{ borderColor: isSelected ? '#fbbf24' : tierInfo.hex }}
+                    className={`shrink-0 w-24 h-28 rounded-xl bg-gradient-to-b ${elemStyle.bg} border-2 p-1.5 flex flex-col justify-between cursor-pointer transition select-none ${
+                      isSelected
+                        ? 'ring-2 ring-amber-400 -translate-y-1 shadow-[0_0_15px_rgba(245,158,11,0.9)]'
+                        : 'shadow-md'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-[8px] font-mono border-b border-white/10 pb-0.5">
+                      <span className="font-fantasy font-black text-amber-100 truncate">{resCard.name}</span>
+                      <span className={elemStyle.text}>{elemStyle.badge}</span>
+                    </div>
+                    <div className="text-2xl my-auto text-center">{resCard.avatar}</div>
+                    <div className="flex items-center justify-between text-[7.5px] font-mono text-white pt-0.5 border-t border-white/10">
+                      <span>❤️{resCard.hp}</span>
+                      <span>⚔️{resCard.attackPower}</span>
+                      <span>⚡{resCard.speed}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ================= 5. SCREEN-LEVEL FIXED SKILL TOOLTIP (Khắc phục 100% che chữ / cắt chữ) ================= */}
