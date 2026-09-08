@@ -35,7 +35,7 @@ function createMockCard(id: string, name: string, overrides: Partial<MonsterCard
         element: 'nature',
         baseDamage: 24,
         targetType: 'single_enemy',
-        cooldown: 2,
+        cooldown: 1,
         currentCooldown: 0,
         description: 'Tấn công gây sát thương lớn',
       },
@@ -192,4 +192,37 @@ describe('Turn Action Resolution & 1-Click End Turn', () => {
     const rageUnlocked = (rageCard.hiddenRage || 0) >= 3;
     expect(rageUnlocked).toBe(true);
   });
+
+  it('tracks cooldown lifecycle across consecutive turns: 1-turn cooldown becomes ready after 1 turn', () => {
+    const p1 = createMockCard('p1', 'Hỏa Miêu');
+    p1.skills[1].cooldown = 1;
+    p1.skills[1].currentCooldown = 0;
+
+    const e1 = createMockCard('e1', 'Sói Địch', { hp: 500, maxHp: 500 });
+
+    // Turn 1: Player uses skill 1
+    const res1 = resolveCombatTurn(
+      [p1, null, null],
+      [e1, null, null],
+      [{ skillIndex: 1, targetSlotIndex: 0 }, { skillIndex: 0, targetSlotIndex: 0 }, { skillIndex: 0, targetSlotIndex: 0 }],
+      [{ skillIndex: 0, targetSlotIndex: 0 }, { skillIndex: 0, targetSlotIndex: 0 }, { skillIndex: 0, targetSlotIndex: 0 }],
+      1
+    );
+
+    // After Turn 1 (with cooldown: 1): currentCooldown decrements at end of turn and becomes 0 (ready after 1 turn)
+    expect(res1.nextPlayerParty[0]!.skills[1].currentCooldown).toBe(0);
+
+    // Turn 2: Player can use skill 1 again immediately after 1 turn!
+    const res2 = resolveCombatTurn(
+      res1.nextPlayerParty,
+      res1.nextEnemyParty,
+      [{ skillIndex: 1, targetSlotIndex: 0 }, { skillIndex: 0, targetSlotIndex: 0 }, { skillIndex: 0, targetSlotIndex: 0 }],
+      [{ skillIndex: 0, targetSlotIndex: 0 }, { skillIndex: 0, targetSlotIndex: 0 }, { skillIndex: 0, targetSlotIndex: 0 }],
+      2
+    );
+
+    // Skill 1 was successfully executed in Turn 2, and decrements back to 0
+    expect(res2.nextPlayerParty[0]!.skills[1].currentCooldown).toBe(0);
+  });
 });
+

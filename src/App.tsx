@@ -209,7 +209,27 @@ export const App: React.FC = () => {
       setIsEliteNode(isElite);
       const enemies = generateEnemyTeam(node.floor, isBoss, isElite);
       setEnemyParty(enemies);
-      setGameState(prev => ({ ...prev, phase: 'combat' }));
+      const resetCardForCombat = (card: MonsterCard): MonsterCard => ({
+        ...card,
+        shield: 0,
+        hiddenRage: 0,
+        hitsDealt: 0,
+        ultimateUsed: false,
+        exhaustTurns: 0,
+        statusEffects: [],
+        skills: [
+          { ...card.skills[0], currentCooldown: 0, usedThisCombat: false },
+          { ...card.skills[1], currentCooldown: 0, usedThisCombat: false },
+          { ...card.skills[2], currentCooldown: 0, usedThisCombat: false },
+        ],
+      });
+
+      setGameState(prev => ({
+        ...prev,
+        phase: 'combat',
+        playerParty: prev.playerParty.map(c => (c ? resetCardForCombat(c) : null)),
+        reserveRoster: prev.reserveRoster.map(resetCardForCombat),
+      }));
     } else if (node.type === 'shop') {
       setGameState(prev => ({ ...prev, phase: 'shop' }));
     } else if (node.type === 'rest') {
