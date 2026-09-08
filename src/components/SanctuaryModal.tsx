@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { MonsterCard, Relic } from '../types/game';
 import { TIERS, TierCode, TierLevel, getTierByLevel } from '../models/tier';
-import { computeCardTierStats, getNextTierLevel } from '../fusion/tierScaling';
+import { computeCardTierStats, getNextTierLevel, calculateTierSkillDamage, calculateTierUltimateDamage } from '../fusion/tierScaling';
+import { formatPassiveForTier } from '../data/monsters';
 import { Anvil, Sparkles, Flame, CheckCircle2, ChevronRight, X, Layers, ShieldCheck, Heart, Swords, Zap } from 'lucide-react';
 import { sound } from '../utils/audio';
 import confetti from 'canvas-confetti';
@@ -94,14 +95,29 @@ export const SanctuaryModal: React.FC<SanctuaryModalProps> = ({
     const baseSPD = cardA.baseSPD ?? cardA.speed;
     const scaledStats = computeCardTierStats(baseHP, baseATK, baseSPD, nextLevel);
 
-    // Deep copy skill 2 and apply Cleanse if SSR+
-    const updatedSkills = [...cardA.skills] as [MonsterCard['skills'][0], MonsterCard['skills'][1], MonsterCard['skills'][2]];
-    if (nextLevel >= 4) {
-      updatedSkills[1] = {
-        ...updatedSkills[1],
-        description: `${updatedSkills[1].description} (SSR+: Hóa giải 1 debuff xấu cho bản thân)`,
-      };
-    }
+    // Deep copy skills and scale damages according to new tier
+    const updatedSkills = [
+      {
+        ...cardA.skills[0],
+        baseDamage: scaledStats.computedATK,
+        description: `Đòn cơ bản gây ${scaledStats.computedATK} sát thương theo ATK.`,
+      },
+      {
+        ...cardA.skills[1],
+        baseDamage: calculateTierSkillDamage(cardA.skills[1].baseDamage, nextLevel),
+        healAmount: cardA.skills[1].healAmount ? calculateTierSkillDamage(cardA.skills[1].healAmount, nextLevel) : undefined,
+        description: nextLevel >= 4
+          ? `${cardA.skills[1].description} (SSR+: Hóa giải 1 debuff xấu cho bản thân)`
+          : cardA.skills[1].description,
+      },
+      {
+        ...cardA.skills[2],
+        baseDamage: calculateTierUltimateDamage(cardA.skills[2].baseDamage, nextLevel),
+        description: `TUYỆT KỸ: Gây ${calculateTierUltimateDamage(cardA.skills[2].baseDamage, nextLevel)} sát thương khi đạt 2 đòn đánh, dưới 50% HP hoặc đủ 3 Nộ ẩn.`,
+      },
+    ] as [MonsterCard['skills'][0], MonsterCard['skills'][1], MonsterCard['skills'][2]];
+
+    const scaledPassive = formatPassiveForTier(cardA.passive, nextLevel);
 
     const fusedCard: MonsterCard = {
       ...cardA,
@@ -113,11 +129,14 @@ export const SanctuaryModal: React.FC<SanctuaryModalProps> = ({
       computedHP: scaledStats.computedHP,
       computedATK: scaledStats.computedATK,
       computedSPD: scaledStats.computedSPD,
+      computedDEF: scaledStats.computedDEF,
       maxHp: scaledStats.computedHP,
       hp: scaledStats.computedHP, // Full heal on fusion
       attackPower: scaledStats.computedATK,
-      speed: scaledStats.computedSPD, // Speed remains flat
+      speed: scaledStats.computedSPD, // Speed scales with tier!
+      defense: scaledStats.computedDEF,
       equippedRelics: [...cardA.equippedRelics, ...pair.second.card.equippedRelics],
+      passive: scaledPassive,
       skills: updatedSkills,
     };
 
@@ -388,7 +407,7 @@ export const SanctuaryModal: React.FC<SanctuaryModalProps> = ({
                               <div>
                                 <span className="text-[9px] text-slate-400 block">TỐC ĐỘ</span>
                                 <span className="font-bold text-teal-400">{nextStats.computedSPD}</span>
-                                <span className="text-[8px] text-slate-500 block">Chuẩn</span>
+                                <span className="text-[8px] text-emerald-400 block">+{nextStats.computedSPD - cardA.speed}</span>
                               </div>
                             </div>
 

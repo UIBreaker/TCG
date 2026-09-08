@@ -31,9 +31,9 @@ describe('calculateSkillEffectPreview & Relic Breakdown', () => {
     expect(emberContrib?.contributionAmount).toBe(5.2);
     expect(swiftContrib?.contributionAmount).toBe(1.0);
 
-    // Base ATK is 5. Total = 5 + 5.2 + 1.0 = 11.2
-    expect(preview.baseValue).toBe(5);
-    expect(preview.finalValue).toBe(11.2);
+    // Base ATK is 17 (UR tier). Total = 17 + 5.2 + 1.0 = 23.2
+    expect(preview.baseValue).toBe(17);
+    expect(preview.finalValue).toBe(23.2);
   });
 
   it('correctly calculates utility skill relic contribution from iron_scale', () => {

@@ -20,6 +20,7 @@ export interface Card {
   computedHP: number;
   computedATK: number;
   computedSPD: number;
+  computedDEF?: number;
   currentHP: number;
   currentShield: number;
   hiddenRage: number;

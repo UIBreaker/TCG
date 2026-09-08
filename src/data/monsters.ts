@@ -1,12 +1,58 @@
-import { MonsterCard } from '../types/game';
-import { computeCardTierStats } from '../fusion/tierScaling';
-import { TierCode, TierLevel, TIER_ORDER } from '../models/tier';
+import { MonsterCard, Skill } from '../types/game';
+import {
+  computeCardTierStats,
+  calculateTierSkillDamage,
+  calculateTierUltimateDamage,
+  getTierPassiveMultiplier,
+} from '../fusion/tierScaling';
+import { TierCode, TierLevel, TIER_ORDER, TIERS } from '../models/tier';
+
+// Helper to scale passive ability description based on tier
+export const formatPassiveForTier = (
+  passive: { id: string; name: string; description: string },
+  tierLevel: TierLevel
+): { id: string; name: string; description: string } => {
+  const mult = getTierPassiveMultiplier(tierLevel);
+  if (tierLevel === 0) return { ...passive };
+
+  let desc = passive.description;
+  if (passive.id === 'ignis_passion') {
+    desc = `Khi máu còn dưới 50%, toàn bộ sát thương gây ra tăng thêm +${Math.round(25 * mult)}%.`;
+  } else if (passive.id === 'ash_fangs') {
+    desc = `Đòn đánh lên mục tiêu đang bị Thiêu Đốt gây thêm +${Math.round(30 * mult)}%.`;
+  } else if (passive.id === 'solid_shell') {
+    desc = `Giảm ${Math.min(85, Math.round(25 * mult))}% sát thương từ mọi đòn tấn công trực tiếp nhận vào.`;
+  } else if (passive.id === 'photosynthesis') {
+    desc = `Tự động hồi phục +${Math.round(5 * mult)} Máu vào đầu mỗi lượt thi đấu.`;
+  } else if (passive.id === 'phoenix_rebirth') {
+    desc = `Lần đầu nhận đòn chí tử, giữ lại 1 HP và lập tức nhận ${Math.round(15 * mult)} Giáp ảo.`;
+  } else if (passive.id === 'magma_scales') {
+    desc = `Giảm ${Math.round(3 * mult)} sát thương từ mọi đòn tấn công trực tiếp nhận vào.`;
+  } else if (passive.id === 'last_blast') {
+    desc = `Khi bị tiêu diệt, phát nổ gây ${Math.round(15 * mult)} sát thương phản kích lên kẻ ra đòn kết liễu.`;
+  } else if (passive.id === 'abyssal_chill') {
+    desc = `Kẻ tấn công vào nhận trạng thái Làm Chậm (-${Math.round(3 * mult)} Tốc độ) trong 1 lượt.`;
+  } else if (passive.id === 'ink_camouflage') {
+    desc = `Có ${Math.min(65, Math.round(20 * mult))}% xác suất né tránh hoàn toàn đòn đánh của đối thủ.`;
+  } else if (passive.id === 'venomous_touch') {
+    desc = `Mỗi tầng Độc trên kẻ địch gia tăng thêm +${Math.round(10 * mult)}% sát thương cho mọi đòn tấn công của Xà Độc.`;
+  } else if (passive.id === 'stalker_instinct') {
+    desc = `Nếu hành động trước đối thủ trong làn đối diện, đòn đánh chắc chắn bạo kích +${Math.round(30 * mult)}% sát thương.`;
+  } else if (passive.id === 'high_voltage') {
+    desc = `Nếu tốc độ cao hơn mục tiêu, sát thương tăng thêm +${Math.round(20 * mult)}%.`;
+  }
+
+  const tierInfo = TIERS[TIER_ORDER[tierLevel]];
+  return {
+    ...passive,
+    description: `[${tierInfo.name}] ${desc}`,
+  };
+};
 
 // Helper to generate a new instance of a monster with unique id and fresh tactical stats
 export const createMonsterInstance = (template: MonsterCard, customId?: string, forcedTier?: TierLevel): MonsterCard => {
-  const templateIdx = MONSTER_TEMPLATES.findIndex(t => t.id === template.id);
-  const derivedTierLevel: TierLevel = forcedTier ?? (template.tierLevel !== undefined ? template.tierLevel : (templateIdx >= 0 ? (templateIdx % 5) as TierLevel : 0));
-  const tierCode: TierCode = template.tier || TIER_ORDER[derivedTierLevel];
+  const derivedTierLevel: TierLevel = forcedTier ?? (template.tierLevel !== undefined ? template.tierLevel : 0);
+  const tierCode: TierCode = template.tier && forcedTier === undefined ? template.tier : TIER_ORDER[derivedTierLevel];
 
   // Baseline low-scale stats (Section 1: Base HP 6-10, Base ATK 1-3, Base SPD 1-5)
   const rawBaseHP = template.baseHP ?? Math.max(7, Math.min(10, Math.round(template.hp / 9.5)));
@@ -15,9 +61,33 @@ export const createMonsterInstance = (template: MonsterCard, customId?: string, 
 
   const computed = computeCardTierStats(rawBaseHP, rawBaseATK, rawBaseSPD, derivedTierLevel);
 
+  // Dynamic Skill Scaling across Tiers:
+  // Skill 0: ATK based basic attack
   const basicDmg = computed.computedATK;
-  const utilDmg = Math.max(1, Math.min(3, Math.round((template.skills[1]?.baseDamage || 2) / 8)));
-  const ultDmg = Math.max(8, Math.min(14, Math.round((template.skills[2]?.baseDamage || 10) / 3)));
+
+  // Skill 1: Utility skill (scaled damage / shield / heal)
+  const rawSkill1Dmg = Math.max(1, Math.round((template.skills[1]?.baseDamage || 2) / 8));
+  const utilDmg = calculateTierSkillDamage(rawSkill1Dmg, derivedTierLevel);
+  const rawHeal = template.skills[1]?.healAmount ? Math.max(1, Math.round(template.skills[1].healAmount / 8)) : 0;
+  const utilHeal = rawHeal > 0 ? calculateTierSkillDamage(rawHeal, derivedTierLevel) : undefined;
+  const utilStatus = template.skills[1]?.statusEffect
+    ? {
+        ...template.skills[1].statusEffect,
+        value: calculateTierSkillDamage(Math.max(1, Math.round((template.skills[1].statusEffect.value || 2) / 8)), derivedTierLevel),
+      }
+    : undefined;
+
+  // Skill 2: Ultimate skill (explosive damage scaling across tiers)
+  const rawUltDmg = Math.max(8, Math.min(14, Math.round((template.skills[2]?.baseDamage || 10) / 3)));
+  const ultDmg = calculateTierUltimateDamage(rawUltDmg, derivedTierLevel);
+
+  const scaledPassive = formatPassiveForTier(template.passive, derivedTierLevel);
+
+  const skill1Desc = utilHeal
+    ? `Hồi phục ${utilHeal} Máu.`
+    : template.skills[1]?.statusEffect?.type === 'shield'
+    ? `Tạo ${utilStatus?.value ?? utilDmg} Giáp ảo bảo vệ.`
+    : `Kỹ năng phụ gây ${utilDmg} sát thương.`;
 
   return {
     ...template,
@@ -30,11 +100,12 @@ export const createMonsterInstance = (template: MonsterCard, customId?: string, 
     computedHP: computed.computedHP,
     computedATK: computed.computedATK,
     computedSPD: computed.computedSPD,
+    computedDEF: computed.computedDEF,
     hp: computed.computedHP,
     maxHp: computed.computedHP,
-    speed: computed.computedSPD, // Speed never scales with tier!
+    speed: computed.computedSPD, // Speed scales progressively with tier!
     attackPower: computed.computedATK,
-    defense: 0,
+    defense: computed.computedDEF, // Innate defense for high tiers!
     shield: 0,
     hiddenRage: 0,
     hitsDealt: 0,
@@ -43,6 +114,7 @@ export const createMonsterInstance = (template: MonsterCard, customId?: string, 
     modifiers: [],
     equippedRelics: [...(template.equippedRelics || [])],
     statusEffects: [],
+    passive: scaledPassive,
     skills: [
       {
         ...template.skills[0],
@@ -53,10 +125,10 @@ export const createMonsterInstance = (template: MonsterCard, customId?: string, 
       {
         ...template.skills[1],
         baseDamage: utilDmg,
+        healAmount: utilHeal,
+        statusEffect: utilStatus,
         currentCooldown: 0,
-        description: template.skills[1]?.healAmount
-          ? `Hồi phục ${Math.max(1, Math.round(template.skills[1].healAmount / 8))} Máu.`
-          : `Tạo ${utilDmg} Giáp ảo bảo vệ.`,
+        description: skill1Desc,
       },
       {
         ...template.skills[2],
@@ -1509,15 +1581,30 @@ export const MONSTER_TEMPLATES: MonsterCard[] = [
   },
 ];
 
-// Helper: Pick 3 random distinct starter choices for player draft
-export const getRandomStarterChoices = (count: number = 3): MonsterCard[] => {
+// Helper: Roll gacha tier for starter choices:
+// 90% Tier C (Common - Level 0)
+// 9% Tier UC (Uncommon - Level 1)
+// 1% Tier R (Rare - Level 2)
+// 0% for SR, SSR, UR, MR, TR
+export const rollStarterTier = (): TierLevel => {
+  const rand = Math.random();
+  if (rand < 0.01) return 2; // 1% Tier R (Rare)
+  if (rand < 0.10) return 1; // 9% Tier UC (Uncommon)
+  return 0;                  // 90% Tier C (Common)
+};
+
+// Helper: Pick random distinct starter choices for player draft with strict gacha rates
+export const getRandomStarterChoices = (count: number = 6): MonsterCard[] => {
   const shuffled = [...MONSTER_TEMPLATES].sort(() => 0.5 - Math.random());
-  return shuffled.slice(0, count).map(tpl => createMonsterInstance(tpl));
+  return shuffled.slice(0, count).map(tpl => {
+    const tier = rollStarterTier();
+    return createMonsterInstance(tpl, undefined, tier);
+  });
 };
 
 // Initial player party when a draft choice is selected (3 Lanes matching Image 1)
 export const createInitialPlayerParty = (chosenMonster?: MonsterCard): (MonsterCard | null)[] => {
-  const starter = chosenMonster ? { ...chosenMonster } : createMonsterInstance(MONSTER_TEMPLATES[0]);
+  const starter = chosenMonster ? { ...chosenMonster } : createMonsterInstance(MONSTER_TEMPLATES[0], undefined, 0);
   return [starter, null, null];
 };
 
@@ -1531,24 +1618,28 @@ export const generateEnemyTeam = (
 
   if (isBoss) {
     // Boss battle: 3 enemies (Minion 1 in Lane 1, Boss in Center Lane 2, Minion 2 in Lane 3)
+    const bossTier: TierLevel = Math.min(3, Math.max(1, Math.floor(floor / 2))) as TierLevel;
+    const minionTier: TierLevel = Math.max(0, bossTier - 1) as TierLevel;
+
     const bossTpl = availableTemplates[Math.floor(Math.random() * availableTemplates.length)];
-    const boss = createMonsterInstance(bossTpl, `boss_${floor}_1`);
+    const boss = createMonsterInstance(bossTpl, `boss_${floor}_1`, bossTier);
     boss.name = `[TRÙM] ${boss.name}`;
     boss.hp = Math.round(boss.hp * 1.5);
     boss.maxHp = boss.hp;
     boss.attackPower = Math.round(boss.attackPower * 1.25);
     boss.shield = 20;
 
-    const minion1 = createMonsterInstance(availableTemplates[(floor * 2) % availableTemplates.length]);
-    const minion2 = createMonsterInstance(availableTemplates[(floor * 3 + 1) % availableTemplates.length]);
+    const minion1 = createMonsterInstance(availableTemplates[(floor * 2) % availableTemplates.length], undefined, minionTier);
+    const minion2 = createMonsterInstance(availableTemplates[(floor * 3 + 1) % availableTemplates.length], undefined, minionTier);
 
     return [minion1, boss, minion2];
   }
 
   if (isElite) {
     // Elite battle: 2-3 tough enemies
-    const elite1 = createMonsterInstance(availableTemplates[(floor * 2) % availableTemplates.length]);
-    const elite2 = createMonsterInstance(availableTemplates[(floor * 2 + 1) % availableTemplates.length]);
+    const eliteTier: TierLevel = Math.min(2, Math.max(1, Math.floor(floor / 3))) as TierLevel;
+    const elite1 = createMonsterInstance(availableTemplates[(floor * 2) % availableTemplates.length], undefined, eliteTier);
+    const elite2 = createMonsterInstance(availableTemplates[(floor * 2 + 1) % availableTemplates.length], undefined, eliteTier);
     elite1.hp = Math.round(elite1.hp * 1.25);
     elite1.maxHp = elite1.hp;
     elite2.hp = Math.round(elite2.hp * 1.25);
@@ -1561,22 +1652,23 @@ export const generateEnemyTeam = (
   // Floor 1: 1 enemy in center slot (Lane 2)
   // Floor 2: 2 enemies in Lane 1 and Lane 3
   // Floor 3+: 3 enemies
+  const normalTier: TierLevel = (floor >= 5 ? 1 : 0) as TierLevel;
   const enemyCount = floor === 1 ? 1 : floor < 3 ? 2 : 3;
   const team: (MonsterCard | null)[] = [null, null, null];
 
   const shuffled = [...availableTemplates].sort(() => 0.5 - Math.random());
   if (enemyCount === 1) {
-    const enemy = createMonsterInstance(shuffled[0], `enemy_${floor}_0`);
+    const enemy = createMonsterInstance(shuffled[0], `enemy_${floor}_0`, normalTier);
     enemy.hp = Math.round(enemy.hp * 0.8);
     enemy.maxHp = enemy.hp;
     team[1] = enemy; // Centered
   } else if (enemyCount === 2) {
-    team[0] = createMonsterInstance(shuffled[0], `enemy_${floor}_0`);
-    team[2] = createMonsterInstance(shuffled[1], `enemy_${floor}_1`);
+    team[0] = createMonsterInstance(shuffled[0], `enemy_${floor}_0`, normalTier);
+    team[2] = createMonsterInstance(shuffled[1], `enemy_${floor}_1`, normalTier);
   } else {
-    team[0] = createMonsterInstance(shuffled[0], `enemy_${floor}_0`);
-    team[1] = createMonsterInstance(shuffled[1], `enemy_${floor}_1`);
-    team[2] = createMonsterInstance(shuffled[2], `enemy_${floor}_2`);
+    team[0] = createMonsterInstance(shuffled[0], `enemy_${floor}_0`, normalTier);
+    team[1] = createMonsterInstance(shuffled[1], `enemy_${floor}_1`, normalTier);
+    team[2] = createMonsterInstance(shuffled[2], `enemy_${floor}_2`, normalTier);
   }
 
   return team;

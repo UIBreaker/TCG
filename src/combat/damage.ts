@@ -58,24 +58,28 @@ export function calculateDamage(
   // 3. Distance decay: distance >= 2 decays by 12%
   const decayed = distance >= 2 ? raw * 0.88 : raw;
 
-  // 4. Shield absorption
+  // 4. Innate DEF reduction for higher tiers (unless piercing)
+  const def = options?.isPiercing ? 0 : (defender.computedDEF || 0);
+  const afterDef = Math.max(1, decayed - def);
+
+  // 5. Shield absorption
   let shieldAbsorbed = 0;
-  let excessDamage = decayed;
+  let excessDamage = afterDef;
   let remainingShield = defender.currentShield;
 
   if (defender.currentShield > 0) {
-    if (decayed <= defender.currentShield) {
-      shieldAbsorbed = Math.floor(decayed);
+    if (afterDef <= defender.currentShield) {
+      shieldAbsorbed = Math.floor(afterDef);
       remainingShield = defender.currentShield - shieldAbsorbed;
       excessDamage = 0;
     } else {
       shieldAbsorbed = defender.currentShield;
       remainingShield = 0;
-      excessDamage = decayed - shieldAbsorbed;
+      excessDamage = afterDef - shieldAbsorbed;
     }
   }
 
-  // 5. HP damage: floor at the final step
+  // 6. HP damage: floor at the final step
   const hpDamage = Math.max(0, Math.floor(excessDamage));
   const remainingHP = Math.max(0, defender.currentHP - hpDamage);
 

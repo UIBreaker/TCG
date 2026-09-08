@@ -3,6 +3,7 @@ import { getRandomRelic } from '../data/relics';
 import { calculateDamage } from '../combat/damage';
 import { resolveImpactVFX, ImpactVFXSpec } from '../combat/impactVFX';
 import { Card } from '../models/card';
+import { getTierPassiveMultiplier } from '../fusion/tierScaling';
 
 // Converts MonsterCard to tactical engine Card model
 export function monsterToCombatCard(m: MonsterCard): Card {
@@ -17,6 +18,7 @@ export function monsterToCombatCard(m: MonsterCard): Card {
     computedHP: m.computedHP ?? m.maxHp,
     computedATK: m.computedATK ?? m.attackPower,
     computedSPD: m.computedSPD ?? m.speed,
+    computedDEF: m.computedDEF ?? m.defense ?? 0,
     currentHP: m.hp,
     currentShield: m.shield || 0,
     hiddenRage: m.hiddenRage || 0,
@@ -430,21 +432,24 @@ export const resolveCombatTurn = (
       if (actor.statusEffects.some(s => s.type === 'weaken')) multiplier *= 0.75;
       if (target.statusEffects.some(s => s.type === 'vulnerable')) multiplier *= 1.25;
 
-      // Passive bonuses
+      // Passive bonuses scaled by Tier
+      const actorPassiveMult = getTierPassiveMultiplier(actor.tierLevel ?? 0);
+      const targetPassiveMult = getTierPassiveMultiplier(target.tierLevel ?? 0);
+
       if (actor.passive.id === 'ignis_passion' && actor.hp < actor.maxHp * 0.5) {
-        multiplier *= 1.25;
+        multiplier *= (1 + 0.25 * actorPassiveMult);
       }
       if (actor.passive.id === 'ash_fangs' && target.statusEffects.some(s => s.type === 'burn')) {
-        multiplier *= 1.3;
+        multiplier *= (1 + 0.3 * actorPassiveMult);
       }
       if (actor.passive.id === 'high_voltage' && getEffectiveSpeed(actor) > getEffectiveSpeed(target)) {
-        multiplier *= 1.2;
+        multiplier *= (1 + 0.2 * actorPassiveMult);
       }
       if (actor.passive.id === 'stalker_instinct' && getEffectiveSpeed(actor) > getEffectiveSpeed(target)) {
-        multiplier *= 1.3;
+        multiplier *= (1 + 0.3 * actorPassiveMult);
       }
       if (target.passive.id === 'solid_shell') {
-        multiplier *= 0.75;
+        multiplier *= Math.max(0.15, 1 - 0.25 * targetPassiveMult);
       }
 
       // Relic: Speed Blitz
@@ -668,10 +673,12 @@ export const resolveCombatTurn = (
     team.forEach((card, slotIdx) => {
       if (!card || card.hp <= 0) return;
 
-      // Passive: Photosynthesis (+5 HP)
+      // Passive: Photosynthesis (+5 HP scaled by tier)
       if (card.passive.id === 'photosynthesis') {
-        card.hp = Math.min(card.maxHp, card.hp + 5);
-        addLog(card.name, side === 'player', `Quang hợp rừng già hồi phục +5 HP`, slotIdx);
+        const pMult = getTierPassiveMultiplier(card.tierLevel ?? 0);
+        const healVal = Math.round(5 * pMult);
+        card.hp = Math.min(card.maxHp, card.hp + healVal);
+        addLog(card.name, side === 'player', `Quang hợp rừng già hồi phục +${healVal} HP`, slotIdx);
       }
 
       // Relic: Ancient Heart (+5 HP)

@@ -84,8 +84,8 @@ export const StarterDraftModal: React.FC<StarterDraftModalProps> = ({ onSelectSt
         </h2>
         <p className="text-xs sm:text-sm text-slate-300 font-sans mt-1">
           {step === 1
-            ? 'Rút 3 lá ngẫu nhiên đầu tiên. Hãy chọn 1 quái thú đồng hành chủ lực!'
-            : 'Hệ thống rút tiếp 3 lá quái thú hoàn toàn khác. Hãy chọn linh thú thứ 2 để đồng hành!'}
+            ? 'Rút 3 quái thú ngẫu nhiên (Tỉ lệ: 90% Thường C • 9% May mắn UC • 1% Cực hiếm R). Chọn 1 quái tiên phong!'
+            : 'Rút tiếp 3 quái thú khác. Hãy chọn linh thú thứ 2 để đồng hành bước vào chiến trường!'}
         </p>
 
         {/* First choice summary pill if in Step 2 */}
@@ -105,15 +105,31 @@ export const StarterDraftModal: React.FC<StarterDraftModalProps> = ({ onSelectSt
           const tierCode: TierCode = card.tier || 'C';
           const tierInfo = TIERS[tierCode] || TIERS.C;
           const tilt = tiltMap[idx] || { x: 0, y: 0 };
+          const isRareLucky = tierCode === 'R';
+          const isUncommonLucky = tierCode === 'UC';
 
           return (
             <div
               key={card.id}
-              className="relative group"
+              className="relative group pt-2"
               style={{
                 perspective: '1000px',
               }}
             >
+              {/* Rare 1% Lucky Banner */}
+              {isRareLucky && (
+                <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 z-30 px-3 py-0.5 rounded-full bg-gradient-to-r from-blue-600 via-indigo-500 to-amber-400 text-white font-black text-[10px] shadow-[0_0_15px_rgba(59,130,246,0.8)] border border-amber-300 animate-bounce flex items-center gap-1 whitespace-nowrap">
+                  <span>🌟 CỰC KỲ MAY MẮN (1% RARE!)</span>
+                </div>
+              )}
+
+              {/* Uncommon 9% Lucky Banner */}
+              {isUncommonLucky && (
+                <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 z-30 px-3 py-0.5 rounded-full bg-gradient-to-r from-emerald-600 to-teal-400 text-white font-black text-[10px] shadow-[0_0_12px_rgba(16,185,129,0.7)] border border-emerald-300 flex items-center gap-1 whitespace-nowrap">
+                  <span>🍀 MAY MẮN (9% UNCOMMON)</span>
+                </div>
+              )}
+
               {/* 3D Physical Card Edge Layer (Section 4: offset 5px to bottom-right, darker tone) */}
               <div
                 style={{ borderColor: tierInfo.hex }}
@@ -130,9 +146,13 @@ export const StarterDraftModal: React.FC<StarterDraftModalProps> = ({ onSelectSt
                 onMouseLeave={() => handleMouseLeave(idx)}
                 style={{
                   transform: `perspective(1000px) rotateX(${tilt.x}deg) rotateY(${tilt.y}deg)`,
-                  borderColor: isChosen ? '#fbbf24' : tierInfo.hex,
+                  borderColor: isChosen ? '#fbbf24' : isRareLucky ? '#60a5fa' : tierInfo.hex,
                   boxShadow: isChosen
                     ? `0 0 0 2px #fbbf24, 0 0 35px ${tierInfo.hex}77`
+                    : isRareLucky
+                    ? `0 0 25px rgba(96, 165, 250, 0.6), 0 0 0 1px #60a5fa`
+                    : isUncommonLucky
+                    ? `0 0 20px rgba(52, 211, 153, 0.5), 0 0 0 1px #34d399`
                     : `0 0 0 1px ${tierInfo.hex}44, 0 12px 28px -5px rgba(0, 0, 0, 0.7)`,
                 }}
                 className={`relative rounded-2xl border-2 transition-all duration-200 cursor-pointer overflow-hidden p-3.5 flex flex-col justify-between bg-gradient-to-b ${
@@ -183,7 +203,7 @@ export const StarterDraftModal: React.FC<StarterDraftModalProps> = ({ onSelectSt
                     {/* Integrated Bottom Badges: HP (Left), ATK (Center), SPD (Right) */}
                     <div
                       className="absolute -bottom-1 -left-1 z-20 px-2 py-0.5 rounded-full bg-gradient-to-br from-rose-600 to-red-950 border-2 border-amber-300 shadow flex items-center gap-0.5 text-white font-black text-xs font-mono"
-                      title="Máu cơ bản HP"
+                      title="Máu HP (Đã scale theo bậc)"
                     >
                       <Heart className="w-3 h-3 fill-white shrink-0" />
                       <span>{card.hp}</span>
@@ -191,7 +211,7 @@ export const StarterDraftModal: React.FC<StarterDraftModalProps> = ({ onSelectSt
 
                     <div
                       className="absolute -bottom-1 left-1/2 -translate-x-1/2 z-20 px-2 py-0.5 rounded-full bg-gradient-to-br from-amber-500 to-yellow-800 border-2 border-amber-300 shadow flex items-center gap-0.5 text-white font-black text-xs font-mono"
-                      title="Sức tấn công ATK"
+                      title="Sức tấn công ATK (Đã scale theo bậc)"
                     >
                       <Swords className="w-3 h-3 text-amber-100 shrink-0" />
                       <span>{card.attackPower}</span>
@@ -199,7 +219,7 @@ export const StarterDraftModal: React.FC<StarterDraftModalProps> = ({ onSelectSt
 
                     <div
                       className="absolute -bottom-1 -right-1 z-20 px-2 py-0.5 rounded-full bg-gradient-to-br from-teal-500 to-emerald-950 border-2 border-amber-300 shadow flex items-center gap-0.5 text-white font-black text-xs font-mono"
-                      title="Tốc độ SPD (Không đổi theo bậc)"
+                      title={`Tốc độ SPD: ${card.speed} (Gốc ${card.baseSPD ?? card.speed})`}
                     >
                       <Zap className="w-3 h-3 fill-white shrink-0" />
                       <span>{card.speed}</span>
@@ -221,7 +241,7 @@ export const StarterDraftModal: React.FC<StarterDraftModalProps> = ({ onSelectSt
                       <span className="font-bold text-orange-400">ATK {card.attackPower}</span>
                     </div>
                     <div>
-                      <span className="text-slate-400 block text-[9px]">Tốc chuẩn</span>
+                      <span className="text-slate-400 block text-[9px]">Gốc SPD: {card.baseSPD ?? card.speed}</span>
                       <span className="font-bold text-emerald-400">SPD {card.speed}</span>
                     </div>
                   </div>

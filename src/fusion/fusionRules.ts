@@ -45,6 +45,7 @@ export function fuseCards(cardA: Card, cardB: Card): FusionResult {
     computedHP: newStats.computedHP,
     computedATK: newStats.computedATK,
     computedSPD: newStats.computedSPD,
+    computedDEF: newStats.computedDEF,
     currentHP: newStats.computedHP, // Reset to full max HP on fusion
     currentShield: 0,
     skills: {

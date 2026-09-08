@@ -102,6 +102,7 @@ export interface MonsterCard {
   computedHP?: number;
   computedATK?: number;
   computedSPD?: number;
+  computedDEF?: number;
   hiddenRage?: number;
   hitsDealt?: number;
   modifiers?: { id?: string; statType: 'ATK' | 'SPD' | 'HP'; amount: number; expiresAt: 'endOfTurn' | 'endOfMatch' | number }[];

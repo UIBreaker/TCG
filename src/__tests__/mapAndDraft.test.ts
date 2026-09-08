@@ -59,7 +59,7 @@ describe('DAG Map & Starter Draft Integration', () => {
     });
   });
 
-  it('draft provides 6 distinct starter candidates for 2-stage Mulligan', () => {
+  it('draft provides 6 distinct starter candidates with valid stats', () => {
     const pool = getRandomStarterChoices(6);
     expect(pool.length).toBe(6);
 
@@ -67,14 +67,49 @@ describe('DAG Map & Starter Draft Integration', () => {
     // At least 3 different templates
     expect(ids.size).toBeGreaterThanOrEqual(3);
 
-    // Each starter has baseline low-scale stats
+    // Each starter has valid low-tier stats (C, UC, or R only)
     pool.forEach(card => {
+      expect(['C', 'UC', 'R']).toContain(card.tier);
       expect(card.hp).toBeGreaterThanOrEqual(6);
-      expect(card.hp).toBeLessThanOrEqual(14);
+      expect(card.hp).toBeLessThanOrEqual(22);
       expect(card.attackPower).toBeGreaterThanOrEqual(1);
-      expect(card.attackPower).toBeLessThanOrEqual(5);
+      expect(card.attackPower).toBeLessThanOrEqual(8);
       expect(card.speed).toBeGreaterThanOrEqual(1);
-      expect(card.speed).toBeLessThanOrEqual(5);
+      expect(card.speed).toBeLessThanOrEqual(8);
     });
+  });
+
+  it('enforces starter draft gacha rates: 90% C, 9% UC, 1% R, 0% high tiers', () => {
+    const trials = 2000;
+    const tierCounts: Record<string, number> = { C: 0, UC: 0, R: 0, OTHER: 0 };
+
+    for (let i = 0; i < trials; i++) {
+      const candidates = getRandomStarterChoices(1);
+      const card = candidates[0];
+      const tier = card.tier || 'C';
+      if (tier === 'C') tierCounts.C++;
+      else if (tier === 'UC') tierCounts.UC++;
+      else if (tier === 'R') tierCounts.R++;
+      else tierCounts.OTHER++;
+    }
+
+    // Absolutely NO SR, SSR, UR, MR, TR in draft!
+    expect(tierCounts.OTHER).toBe(0);
+
+    // Verify statistical boundaries (with 2000 samples):
+    // C ~ 90% (allow 85% - 95%)
+    const cRate = tierCounts.C / trials;
+    expect(cRate).toBeGreaterThan(0.85);
+    expect(cRate).toBeLessThan(0.95);
+
+    // UC ~ 9% (allow 5% - 13%)
+    const ucRate = tierCounts.UC / trials;
+    expect(ucRate).toBeGreaterThan(0.05);
+    expect(ucRate).toBeLessThan(0.13);
+
+    // R ~ 1% (allow 0.1% - 3%)
+    const rRate = tierCounts.R / trials;
+    expect(rRate).toBeGreaterThanOrEqual(0.001);
+    expect(rRate).toBeLessThan(0.035);
   });
 });

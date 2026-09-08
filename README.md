@@ -49,19 +49,23 @@ Không cần cài đặt Node.js hay bất kỳ phần mềm lập trình nào!
   - 👑💀 **Chúa Tể Cổ Long** (Boss tối thượng Tầng 7)
 - **Enemy Preview Panel**: Bấm hoặc rê chuột vào bất kỳ node nào trên bản đồ để xem trước Avatar quái đầu đàn, Bậc thẻ, Hệ nguyên tố kèm lời khuyên Ngũ Khắc (+35% sát thương), Độ khó và Lưu ý chiến thuật trước khi bước vào trận!
 
-### 3. ⭐ Hệ Thống 8 Bậc Thẻ (Tier System) & Chỉ Số Cân Bằng Phẳng
-| Bậc | Tên | Mã | Hex Color | Hệ số chỉ số |
-| :---: | :--- | :---: | :---: | :---: |
-| 1 | Common | C | `#9E9E9E` | x1.00 |
-| 2 | Uncommon | UC | `#4CAF50` | x1.10 |
-| 3 | Rare | R | `#2196F3` | x1.22 |
-| 4 | Super Rare | SR | `#9C27B0` | x1.37 |
-| 5 | Super Special Rare | SSR | `#FFD700` | x1.55 *(Mở Cleanse)* |
-| 6 | Ultra Rare | UR | `#F44336` | x1.78 |
-| 7 | Mythic | MR | `#E0115F` | x2.05 |
-| 8 | Origin / Transcendent | TR | `#E5E4E2` | x2.40 |
+### 3. ⭐ Hệ Thống 8 Bậc Thẻ (Tier System) - Đẳng Cấp Khác Biệt Hoàn Toàn
+| Bậc | Tên | Mã | Hex Color | Hệ số chỉ số | Thưởng Tốc độ | Giáp Tự Nhiên |
+| :---: | :--- | :---: | :---: | :---: | :---: | :---: |
+| 1 | Common | C | `#9E9E9E` | **x1.00** | +0 SPD | 0 DEF |
+| 2 | Uncommon | UC | `#4CAF50` | **x1.40** *(+40%)* | +1 SPD | 0 DEF |
+| 3 | Rare | R | `#2196F3` | **x2.00** *(Gấp 2 C)* | +2 SPD | +1 DEF |
+| 4 | Super Rare | SR | `#9C27B0` | **x2.80** | +4 SPD | +2 DEF |
+| 5 | Super Special Rare | SSR | `#FFD700` | **x4.00** *(Mở Cleanse)* | +6 SPD | +3 DEF |
+| 6 | Ultra Rare | UR | `#F44336` | **x5.80** | +9 SPD | +5 DEF |
+| 7 | Mythic | MR | `#E0115F` | **x8.20** | +12 SPD | +8 DEF |
+| 8 | Origin / Transcendent | TR | `#E5E4E2` | **x12.00** *(Cấp Thần)* | +16 SPD | +12 DEF |
 
-> **Quy tắc cân bằng**: Tốc độ (Speed: 1–5) không bao giờ tăng theo Bậc thẻ để đảm bảo tính chiến thuật chiều sâu và quyền đi trước không bị lạm phát.
+> **Quy tắc Đẳng Cấp Khác Biệt**:
+> - **Máu (HP), Tấn công (ATK), và Chiêu thức (Skill)** nhân theo Hệ số chỉ số vượt trội (từ x1.00 lên tới x12.00).
+> - **Tốc độ (Speed)** tăng lũy tiến theo từng bậc, đảm bảo quái thú bậc cao hơn luôn chiếm quyền ưu tiên ra đòn trước trên chiến trường.
+> - **Nội tại (Passive)** được cường hóa sức mạnh theo bậc (từ x1.00 lên tới x5.00).
+> - **Tỉ lệ Gacha Rút Quái Đầu Game**: **90%** Bậc C (Thường), **9%** Bậc UC (May mắn), **1%** Bậc R (Cực kỳ may mắn). Tuyệt đối không xuất hiện bậc SR trở lên khi khởi đầu!
 
 ### 4. 🛠️ Lò Rèn Sanctuary (Card Fusion & Relic Merge)
 - **Hợp Nhất Thẻ**: Gộp 2 lá cùng Tên + cùng Bậc $\rightarrow$ nâng lên Bậc kế tiếp. Đạt Bậc SSR trở lên mở khóa nội tại **Cleanse (Tẩy 1 debuff khi dùng Chiêu 2)**.

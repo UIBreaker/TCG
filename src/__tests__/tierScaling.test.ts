@@ -1,20 +1,26 @@
 import { describe, it, expect } from 'vitest';
-import { calculateTierStat, computeCardTierStats } from '../fusion/tierScaling';
+import {
+  calculateTierStat,
+  computeCardTierStats,
+  calculateTierSkillDamage,
+  calculateTierUltimateDamage,
+  getTierPassiveMultiplier,
+} from '../fusion/tierScaling';
 import { canFuse, fuseCards } from '../fusion/fusionRules';
 import { SAMPLE_EMBERCLAW_WYRM } from '../data/sampleCard';
 import { Card } from '../models/card';
 
 describe('Tier Stat Scaling', () => {
   it('should scale stats according to progressive tier multipliers', () => {
-    // Multipliers: [1.00, 1.10, 1.22, 1.37, 1.55, 1.78, 2.05, 2.40]
+    // Multipliers: [1.00, 1.40, 2.00, 2.80, 4.00, 5.80, 8.20, 12.00]
     expect(calculateTierStat(10, 0)).toBe(10); // C
-    expect(calculateTierStat(10, 1)).toBe(11); // UC
-    expect(calculateTierStat(10, 2)).toBe(12); // R
-    expect(calculateTierStat(10, 3)).toBe(14); // SR (13.7 -> 14)
-    expect(calculateTierStat(10, 4)).toBe(16); // SSR (15.5 -> 16)
-    expect(calculateTierStat(10, 5)).toBe(18); // UR (17.8 -> 18)
-    expect(calculateTierStat(10, 6)).toBe(21); // MR (20.5 -> 21)
-    expect(calculateTierStat(10, 7)).toBe(24); // TR (24.0 -> 24)
+    expect(calculateTierStat(10, 1)).toBe(14); // UC (10 * 1.40 = 14)
+    expect(calculateTierStat(10, 2)).toBe(20); // R (10 * 2.00 = 20)
+    expect(calculateTierStat(10, 3)).toBe(28); // SR (10 * 2.80 = 28)
+    expect(calculateTierStat(10, 4)).toBe(40); // SSR (10 * 4.00 = 40)
+    expect(calculateTierStat(10, 5)).toBe(58); // UR (10 * 5.80 = 58)
+    expect(calculateTierStat(10, 6)).toBe(82); // MR (10 * 8.20 = 82)
+    expect(calculateTierStat(10, 7)).toBe(120); // TR (10 * 12.00 = 120)
   });
 
   it('correctly matches sample fixture emberclaw_wyrm stats', () => {
@@ -25,10 +31,58 @@ describe('Tier Stat Scaling', () => {
       SAMPLE_EMBERCLAW_WYRM.tierLevel
     );
 
-    expect(computed.computedHP).toBe(16);
-    expect(computed.computedATK).toBe(5);
-    // CRITICAL: SPD must remain unchanged by tier!
-    expect(computed.computedSPD).toBe(4);
+    expect(computed.computedHP).toBe(52);
+    expect(computed.computedATK).toBe(17);
+    // Speed scales progressively with tier (baseSPD 4 + UR speed bonus 9 = 13)
+    expect(computed.computedSPD).toBe(13);
+    expect(computed.computedDEF).toBe(5);
+  });
+
+  it('progressively scales speed across tiers giving higher tier cards turn priority', () => {
+    // Base speed = 3
+    const spdC = computeCardTierStats(10, 2, 3, 0).computedSPD;
+    const spdUC = computeCardTierStats(10, 2, 3, 1).computedSPD;
+    const spdR = computeCardTierStats(10, 2, 3, 2).computedSPD;
+    const spdSR = computeCardTierStats(10, 2, 3, 3).computedSPD;
+    const spdSSR = computeCardTierStats(10, 2, 3, 4).computedSPD;
+    const spdUR = computeCardTierStats(10, 2, 3, 5).computedSPD;
+    const spdMR = computeCardTierStats(10, 2, 3, 6).computedSPD;
+    const spdTR = computeCardTierStats(10, 2, 3, 7).computedSPD;
+
+    expect(spdC).toBe(3);   // +0
+    expect(spdUC).toBe(4);  // +1
+    expect(spdR).toBe(5);   // +2
+    expect(spdSR).toBe(7);  // +4
+    expect(spdSSR).toBe(9); // +6
+    expect(spdUR).toBe(12); // +9
+    expect(spdMR).toBe(15); // +12
+    expect(spdTR).toBe(19); // +16
+    expect(spdTR).toBeGreaterThan(spdMR);
+    expect(spdMR).toBeGreaterThan(spdUR);
+  });
+
+  it('scales skill damage and ultimate damage across tiers', () => {
+    // Skill 1 base = 2
+    expect(calculateTierSkillDamage(2, 0)).toBe(2);  // C
+    expect(calculateTierSkillDamage(2, 1)).toBe(3);  // UC
+    expect(calculateTierSkillDamage(2, 2)).toBe(4);  // R
+    expect(calculateTierSkillDamage(2, 4)).toBe(8);  // SSR
+    expect(calculateTierSkillDamage(2, 7)).toBe(24); // TR
+
+    // Ultimate base = 10
+    expect(calculateTierUltimateDamage(10, 0)).toBe(10);  // C
+    expect(calculateTierUltimateDamage(10, 1)).toBe(14);  // UC
+    expect(calculateTierUltimateDamage(10, 2)).toBe(20);  // R
+    expect(calculateTierUltimateDamage(10, 4)).toBe(40);  // SSR
+    expect(calculateTierUltimateDamage(10, 7)).toBe(120); // TR
+  });
+
+  it('scales passive efficiency multiplier across tiers', () => {
+    expect(getTierPassiveMultiplier(0)).toBe(1.0);
+    expect(getTierPassiveMultiplier(1)).toBe(1.25);
+    expect(getTierPassiveMultiplier(2)).toBe(1.50);
+    expect(getTierPassiveMultiplier(4)).toBe(2.50);
+    expect(getTierPassiveMultiplier(7)).toBe(5.00);
   });
 });
 
@@ -76,7 +130,8 @@ describe('Card Fusion Rules', () => {
     expect(result.success).toBe(true);
     expect(result.fusedCard?.tier).toBe('UC');
     expect(result.fusedCard?.tierLevel).toBe(1);
-    expect(result.fusedCard?.computedHP).toBe(Math.round(8 * 1.10));
+    expect(result.fusedCard?.computedHP).toBe(Math.round(8 * 1.40));
+    expect(result.fusedCard?.computedSPD).toBe(3 + 1); // Speed +1 for UC
   });
 
   it('unlocks secondary bonus effect on utility skill when reaching SSR (tierLevel 4)', () => {
