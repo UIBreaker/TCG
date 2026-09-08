@@ -9,6 +9,7 @@ interface ForestMapProps {
   currentNodeId: string | null;
   onSelectNode: (node: MapNode) => void;
   gold: number;
+  mapLoop?: number;
 }
 
 // Fixed SVG layout coordinates for 7 floors (800 x 1120 coordinate space)
@@ -180,6 +181,7 @@ export const ForestMap: React.FC<ForestMapProps> = ({
   nodes,
   currentNodeId,
   onSelectNode,
+  mapLoop = 1,
 }) => {
   const [hoveredNode, setHoveredNode] = useState<MapNode | null>(null);
   const [inspectedNode, setInspectedNode] = useState<MapNode | null>(null);
@@ -259,14 +261,14 @@ export const ForestMap: React.FC<ForestMapProps> = ({
         <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-red-950/80 border border-red-800/80 shadow-[0_0_20px_rgba(239,68,68,0.4)] mb-1">
           <Compass className="w-3 h-3 text-red-400 animate-spin" />
           <span className="font-mono font-black tracking-widest text-[10px] sm:text-xs text-red-200 uppercase">
-            TẦNG {currentNode?.floor || 1} / 7 • VÙNG ĐẤT BÍ ẨN CHƯA AI ĐẶT CHÂN
+            TẦNG {currentNode?.floor || 1} / 7 • VÒNG LẶP {mapLoop} • ĐẠI TAI ƯƠNG LỤC ĐỊA ĐEN
           </span>
         </div>
         <h1 className="font-fantasy font-black tracking-widest text-base sm:text-xl md:text-2xl text-transparent bg-clip-text bg-gradient-to-r from-amber-300 via-orange-400 to-red-500 drop-shadow-[0_2px_12px_rgba(245,158,11,0.6)] uppercase">
-          YOU HAVE ENTERED... THE DEEP WILDWOOD
+          LỤC ĐỊA ĐEN (HUNTER X HUNTER) {mapLoop > 1 ? `• VÒNG ${mapLoop}` : '• TAI ƯƠNG KHỞI NGUYÊN'}
         </h1>
         <p className="text-[10px] sm:text-[11px] text-amber-200/70 font-mono tracking-wider">
-          (Bấm vào bất kỳ điểm nào trên bản đồ để xem tình báo quái thú & quyết định lộ trình)
+          (Khám phá biển Mobius, săn quái dị chủng & thu thập cổ vật vô tận cho đến khi tử trận)
         </p>
       </div>
 

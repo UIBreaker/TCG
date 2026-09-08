@@ -449,11 +449,9 @@
 }
 
 .game-card-root.is-target {
-  outline: 3px solid #f43f5e;
-  outline-offset: 3px;
-  transform: scale(1.02);
-  z-index: 30;
-  box-shadow: 0 0 25px rgba(244, 63, 94, 0.65);
+  /* Loại bỏ viền đỏ thô - giữ nguyên tính thẩm mỹ tự nhiên của thẻ đối thủ */
+  transform: translateY(-2px);
+  z-index: 25;
 }
 
 .game-card-root.is-actor-player {

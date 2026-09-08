@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { GameState, MonsterCard, Relic, MapNode } from './types/game';
 import { createInitialPlayerParty, generateEnemyTeam } from './data/monsters';
-import { generateForestMap, advanceMapNode } from './engine/mapGenerator';
-import { ALL_RELICS } from './data/relics';
+import { generateDarkContinentMap, generateForestMap, advanceMapNode } from './engine/mapGenerator';
+import { ALL_RELICS, getRandomRelic } from './data/relics';
+import { resolveBruteForce } from './rewards/chestSystem';
 import { HeaderBar } from './components/HeaderBar';
 import { Battlefield } from './components/Battlefield';
 import { ForestMap } from './components/ForestMap';
@@ -22,7 +23,7 @@ import { sound } from './utils/audio';
 export const App: React.FC = () => {
   // Initialize game state with starter draft mode (choose 2 cards across 2 stages into hand)
   const initializeRun = (): GameState => {
-    const map = generateForestMap();
+    const map = generateDarkContinentMap(1);
 
     return {
       playerParty: [null, null, null],
@@ -36,7 +37,9 @@ export const App: React.FC = () => {
       shieldPotionsCount: 1, // 1 Free shield talisman in satchel
       keysCount: 1, // 1 Ancient Key to safely open Treasure Vault
       lockpickToolkitsCount: 1, // 1 Lockpick Toolkit (+20% brute force)
+      chestsCount: 0,
       currentFloor: 1,
+      mapLoop: 1,
       mapNodes: map,
       currentNodeId: null,
       phase: 'draft',
@@ -54,8 +57,15 @@ export const App: React.FC = () => {
   const [isInventoryOpen, setIsInventoryOpen] = useState<boolean>(false);
   const [battleRewards, setBattleRewards] = useState<{
     gold: number;
-    gotRecruitmentCard: boolean;
+    gotRecruitmentCard?: boolean;
+    chestsCount?: number;
+    keysCount?: number;
+    healingHerbsCount?: number;
+    shieldPotionsCount?: number;
+    lockpickToolkitsCount?: number;
     relicDrop?: Relic;
+    isBossWin?: boolean;
+    mapLoop?: number;
   } | null>(null);
   const [audioEnabled, setAudioEnabled] = useState<boolean>(true);
 
@@ -249,7 +259,16 @@ export const App: React.FC = () => {
     nextEnemyParty: (MonsterCard | null)[],
     isVictory: boolean,
     isDefeat: boolean,
-    rewards?: { gold: number; gotRecruitmentCard: boolean; relicDrop?: Relic }
+    rewards?: {
+      gold: number;
+      gotRecruitmentCard?: boolean;
+      chestsCount?: number;
+      keysCount?: number;
+      healingHerbsCount?: number;
+      shieldPotionsCount?: number;
+      lockpickToolkitsCount?: number;
+      relicDrop?: Relic;
+    }
   ) => {
     setGameState(prev => ({
       ...prev,
@@ -264,20 +283,40 @@ export const App: React.FC = () => {
 
     if (isVictory) {
       if (isBossNode) {
-        setGameState(prev => ({ ...prev, phase: 'victory' }));
+        // Floor 7 Boss defeated! Trigger Boss Win Rewards & Advance Map Loop
+        const bonusGold = 150 + (gameState.mapLoop - 1) * 40;
+        setBattleRewards({
+          gold: bonusGold,
+          gotRecruitmentCard: true,
+          chestsCount: 1,
+          keysCount: 2,
+          healingHerbsCount: 2,
+          shieldPotionsCount: 1,
+          lockpickToolkitsCount: 1,
+          relicDrop: rewards?.relicDrop || getRandomRelic(),
+          isBossWin: true,
+          mapLoop: gameState.mapLoop,
+        });
       } else if (rewards) {
-        setBattleRewards(rewards);
+        setBattleRewards({
+          ...rewards,
+          isBossWin: false,
+          mapLoop: gameState.mapLoop,
+        });
       }
     }
   };
 
-  // Claim Battle Rewards & Advance Map
+  // Claim Battle Rewards & Advance Map (Endless loop upon boss win!)
   const handleClaimBattleRewards = () => {
     if (!battleRewards) return;
 
     setGameState(prev => {
-      const activeNodeId = prev.currentNodeId || 'f1_n0';
-      const nextMap = advanceMapNode(prev.mapNodes, activeNodeId);
+      const isBossWin = !!battleRewards.isBossWin;
+      const nextLoop = isBossWin ? prev.mapLoop + 1 : prev.mapLoop;
+      const nextMap = isBossWin
+        ? generateDarkContinentMap(nextLoop)
+        : advanceMapNode(prev.mapNodes, prev.currentNodeId || 'f1_n0');
       const nextRelicInv = battleRewards.relicDrop
         ? [...prev.relicInventory, battleRewards.relicDrop]
         : prev.relicInventory;
@@ -285,15 +324,69 @@ export const App: React.FC = () => {
       return {
         ...prev,
         gold: prev.gold + battleRewards.gold,
+        chestsCount: (prev.chestsCount ?? 0) + (battleRewards.chestsCount ?? 0),
+        keysCount: (prev.keysCount ?? 0) + (battleRewards.keysCount ?? 0),
+        healingHerbsCount: (prev.healingHerbsCount ?? 0) + (battleRewards.healingHerbsCount ?? 0),
+        shieldPotionsCount: (prev.shieldPotionsCount ?? 0) + (battleRewards.shieldPotionsCount ?? 0),
+        lockpickToolkitsCount: (prev.lockpickToolkitsCount ?? 0) + (battleRewards.lockpickToolkitsCount ?? 0),
         captureCardsCount: prev.captureCardsCount + (battleRewards.gotRecruitmentCard ? 1 : 0),
         relicInventory: nextRelicInv,
+        mapLoop: nextLoop,
         mapNodes: nextMap,
-        currentNodeId: activeNodeId,
+        currentNodeId: isBossWin ? null : (prev.currentNodeId || 'f1_n0'),
+        currentFloor: isBossWin ? 1 : prev.currentFloor,
         phase: 'map',
       };
     });
 
     setBattleRewards(null);
+  };
+
+  // Open chest using key directly in inventory
+  const handleOpenChestWithKey = () => {
+    setGameState(prev => {
+      if ((prev.chestsCount ?? 0) <= 0 || (prev.keysCount ?? 0) <= 0) return prev;
+      const droppedRelic = getRandomRelic();
+      const goldGained = 55;
+      return {
+        ...prev,
+        chestsCount: Math.max(0, (prev.chestsCount ?? 1) - 1),
+        keysCount: Math.max(0, (prev.keysCount ?? 1) - 1),
+        gold: prev.gold + goldGained,
+        relicInventory: [...prev.relicInventory, droppedRelic],
+      };
+    });
+  };
+
+  // Open chest via brute force directly in inventory
+  const handleOpenChestBruteForce = () => {
+    setGameState(prev => {
+      if ((prev.chestsCount ?? 0) <= 0) return prev;
+      const hasToolkit = (prev.lockpickToolkitsCount ?? 0) > 0;
+      const res = resolveBruteForce({ hasToolkit });
+
+      let nextParty = [...prev.playerParty];
+      if (res.isTrap || res.isMimic) {
+        sound.playAttack('fire');
+        nextParty = nextParty.map(p => {
+          if (!p || p.hp <= 0) return p;
+          return { ...p, hp: Math.max(1, p.hp - 2) };
+        });
+      }
+
+      const droppedRelic = res.success && Math.random() < 0.5 ? getRandomRelic() : undefined;
+      const goldGained = res.success ? 40 : 0;
+      const nextRelics = droppedRelic ? [...prev.relicInventory, droppedRelic] : prev.relicInventory;
+
+      return {
+        ...prev,
+        chestsCount: Math.max(0, (prev.chestsCount ?? 1) - 1),
+        lockpickToolkitsCount: hasToolkit ? Math.max(0, (prev.lockpickToolkitsCount ?? 1) - 1) : (prev.lockpickToolkitsCount ?? 0),
+        gold: prev.gold + goldGained,
+        playerParty: nextParty,
+        relicInventory: nextRelics,
+      };
+    });
   };
 
   // Monster Captured during combat
@@ -521,6 +614,7 @@ export const App: React.FC = () => {
             currentNodeId={gameState.currentNodeId}
             onSelectNode={handleSelectMapNode}
             gold={gameState.gold}
+            mapLoop={gameState.mapLoop ?? 1}
           />
         )}
 
@@ -712,6 +806,9 @@ export const App: React.FC = () => {
         shieldPotionsCount={gameState.shieldPotionsCount ?? 0}
         keysCount={gameState.keysCount ?? 0}
         lockpickToolkitsCount={gameState.lockpickToolkitsCount ?? 0}
+        chestsCount={gameState.chestsCount ?? 0}
+        onOpenChestWithKey={handleOpenChestWithKey}
+        onOpenChestBruteForce={handleOpenChestBruteForce}
         playerParty={gameState.playerParty}
         reserveRoster={gameState.reserveRoster}
         relicInventory={gameState.relicInventory}

@@ -98,7 +98,16 @@ interface BattlefieldProps {
     nextEnemyParty: (MonsterCard | null)[],
     isVictory: boolean,
     isDefeat: boolean,
-    rewards?: { gold: number; gotRecruitmentCard: boolean; relicDrop?: Relic }
+    rewards?: {
+      gold: number;
+      gotRecruitmentCard: boolean;
+      chestsCount?: number;
+      keysCount?: number;
+      healingHerbsCount?: number;
+      shieldPotionsCount?: number;
+      lockpickToolkitsCount?: number;
+      relicDrop?: Relic;
+    }
   ) => void;
   onMonsterCaptured: (monster: MonsterCard) => void;
   onEnemyPartyChange?: (nextEnemyParty: (MonsterCard | null)[]) => void;
@@ -139,7 +148,7 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
   // Turn counter
   const [turnCounter, setTurnCounter] = useState<number>(1);
 
-  // Section 12: Recall counter (2 times per match: Thu Hồi: X/2)
+  // Section 12: Recall counter (2 times per match: Thu Hồi: X/2) - tự động reset mỗi trận
   const [recallsRemaining, setRecallsRemaining] = useState<number>(2);
 
   const handleRecallSlot = (slotIdx: number) => {
@@ -152,10 +161,17 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
     const card = playerParty[slotIdx];
     if (!card || card.hp <= 0) return;
 
+    const aliveOtherOnField = playerParty.filter((c, idx) => idx !== slotIdx && c && c.hp > 0);
+    if (aliveOtherOnField.length === 0 && reserveRoster.length === 0) {
+      setBannerNotice('⚠️ Không thể thu hồi quái thú duy nhất khi không còn quái dự bị!');
+      setTimeout(() => setBannerNotice(null), 3000);
+      return;
+    }
+
     sound.playCardDraw();
     setRecallsRemaining(prev => Math.max(0, prev - 1));
     onRecallCard?.(slotIdx);
-    setBannerNotice(`🃏 Đã thu hồi [${card.name}] về tay! (Còn ${recallsRemaining - 1}/2 lần thu hồi)`);
+    setBannerNotice(`🃏 Đã thu hồi [${card.name}] về Túi Đồ Dự Bị! (Còn ${recallsRemaining - 1}/2 lần thu hồi)`);
     setTimeout(() => setBannerNotice(null), 3000);
   };
 
@@ -205,6 +221,33 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
   const [draggedReserveIdx, setDraggedReserveIdx] = useState<number | null>(null);
   const [selectedReserveIdx, setSelectedReserveIdx] = useState<number | null>(null);
   const [showMobileHandDrawer, setShowMobileHandDrawer] = useState<boolean>(false);
+  const [showReserveDrawer, setShowReserveDrawer] = useState<boolean>(false);
+  const [deployTargetSlot, setDeployTargetSlot] = useState<number | null>(null);
+
+  const handleDeployReserve = (reserveIdx: number, targetSlot: number) => {
+    if (isExecutingTurn) return;
+    sound.playCardSlam();
+    onDeployReserveCard?.(reserveIdx, targetSlot);
+    setSelectedReserveIdx(null);
+    setShowReserveDrawer(false);
+    setShowMobileHandDrawer(false);
+    setDeployTargetSlot(null);
+    setBannerNotice(`✨ Đã điều động quái thú vào Làn ${targetSlot + 1}!`);
+    setTimeout(() => setBannerNotice(null), 3000);
+  };
+
+  const handleEmptySlotClick = (slotIdx: number) => {
+    if (selectedReserveIdx !== null && reserveRoster && reserveRoster[selectedReserveIdx]) {
+      handleDeployReserve(selectedReserveIdx, slotIdx);
+    } else if (reserveRoster && reserveRoster.length > 0) {
+      sound.playCardSelect();
+      setDeployTargetSlot(slotIdx);
+      setShowReserveDrawer(true);
+    } else {
+      setBannerNotice('Túi đồ dự bị hiện không còn quái thú nào!');
+      setTimeout(() => setBannerNotice(null), 3000);
+    }
+  };
 
   // Right-click inspected card modal state
   const [inspectedCardData, setInspectedCardData] = useState<{
@@ -873,7 +916,13 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
                 return (
                   <div
                     key={slotIdx}
-                    onClick={() => setActiveSlotConfig(slotIdx)}
+                    onClick={() => {
+                      if (!playerCard) {
+                        handleEmptySlotClick(slotIdx);
+                      } else {
+                        setActiveSlotConfig(slotIdx);
+                      }
+                    }}
                     className={`w-full flex flex-col items-center transition-transform ${
                       activeSlotConfig === slotIdx ? 'scale-[1.01]' : ''
                     }`}
@@ -957,157 +1006,66 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
         </div>
       </div>
 
-      {/* BOTTOM ROW (DESKTOP): Backpack & Deck (Left) | Hand Cards (Center) | Horn & Deck (Right) */}
+      {/* BOTTOM ROW (DESKTOP): Backpack & Bench Toggle (Left) | Dark Continent Center Banner | Horn & Deck (Right) */}
       <div className="hidden md:flex w-full max-w-[1360px] mx-auto items-end justify-between z-30 shrink-0 px-2 sm:px-4">
         
-        {/* BOTTOM LEFT: BACKPACK + CARD DECK STAND (Image 1 Style) */}
-        <div
-          onClick={() => {
-            sound.playCardSelect();
-            onOpenInventory?.();
-          }}
-          className="cursor-pointer hover:scale-105 transition-transform flex items-end gap-2 pointer-events-auto group pb-1"
-          title="Túi đồ lữ hành (Mở túi để dùng Vàng & Thảo dược & Phù chú & Cổ vật)"
-        >
-          <div className="flex flex-col items-center">
-            <BackpackSvg className="w-12 h-12 sm:w-14 sm:h-14 drop-shadow-lg" />
-            <span className="text-[8.5px] sm:text-[9.5px] font-bold text-amber-200/90 font-mono group-hover:text-amber-300">
-              TÚI ĐỒ ({gold}G)
-            </span>
+        {/* BOTTOM LEFT: BACKPACK + RESERVE BENCH (TÚI ĐỒ & QUÁI DỰ BỊ) */}
+        <div className="flex items-end gap-3 pointer-events-auto pb-1 z-40">
+          <div
+            onClick={() => {
+              sound.playCardSelect();
+              onOpenInventory?.();
+            }}
+            className="cursor-pointer hover:scale-105 transition-transform flex items-end gap-2 group"
+            title="Túi đồ lữ hành (Mở túi để dùng Vàng, Thảo dược, Bình giáp, Cổ vật & xem Quái dự bị)"
+          >
+            <div className="flex flex-col items-center">
+              <BackpackSvg className="w-12 h-12 sm:w-14 sm:h-14 drop-shadow-lg" />
+              <span className="text-[8.5px] sm:text-[9.5px] font-bold text-amber-200/90 font-mono group-hover:text-amber-300">
+                TÚI ĐỒ ({gold}G)
+              </span>
+            </div>
+            <DeckStackSvg className="w-7 h-9 drop-shadow-md opacity-85 hidden sm:block" />
           </div>
-          <DeckStackSvg className="w-7 h-9 drop-shadow-md opacity-85 hidden sm:block" />
+
+          {/* RESERVE BENCH DRAWER TOGGLE BUTTON */}
+          {reserveRoster && reserveRoster.length > 0 && (
+            <button
+              onClick={() => {
+                sound.playCardSelect();
+                setShowReserveDrawer(prev => !prev);
+              }}
+              className={`px-3 py-1.5 rounded-2xl border flex items-center gap-2 transition shadow-lg cursor-pointer ${
+                showReserveDrawer
+                  ? 'bg-amber-500 border-amber-300 text-slate-950 font-black ring-2 ring-amber-300'
+                  : 'bg-emerald-950/90 hover:bg-emerald-900 border-emerald-500/70 text-emerald-200 hover:text-white'
+              }`}
+              title="Mở ngăn quái thú dự bị để điều động ra sân"
+            >
+              <span className="text-base">🃏</span>
+              <div className="text-left">
+                <span className="text-xs font-black font-mono block leading-none">
+                  DỰ BỊ ({reserveRoster.length})
+                </span>
+                <span className="text-[8.5px] opacity-80 block mt-0.5">
+                  {showReserveDrawer ? 'Đóng ngăn' : 'Mở điều động'}
+                </span>
+              </div>
+            </button>
+          )}
         </div>
 
-        {/* BOTTOM CENTER: HAND TRAY (Image 1 Style: peeking from bottom) */}
-        {reserveRoster && reserveRoster.length > 0 ? (
-          <div className="flex items-end justify-center z-30 pointer-events-auto">
-            <div className="flex items-end gap-2 sm:gap-3 px-4 py-1.5 rounded-t-2xl bg-slate-950/95 border-t border-x border-emerald-600/70 shadow-[0_-8px_25px_rgba(0,0,0,0.8)] backdrop-blur-md">
-              <div className="self-center mr-1 flex flex-col">
-                <span className="text-xs sm:text-[13px] font-black text-amber-300 font-mono tracking-wider flex items-center gap-1">
-                  <span>🃏 TRÊN TAY ({reserveRoster.length})</span>
-                </span>
-                <span className="text-[8.5px] sm:text-[9.5px] text-emerald-300/80 font-bold">Kéo vào làn trống</span>
-              </div>
-
-              {reserveRoster.map((resCard, rIdx) => {
-                const isSelected = selectedReserveIdx === rIdx;
-                const isBeingDragged = draggedReserveIdx === rIdx;
-                const elemStyle = HAND_CARD_STYLES[resCard.element] || HAND_CARD_STYLES.nature;
-                const tierCode = resCard.tier || 'C';
-                const tierInfo = TIERS[tierCode] || TIERS.C;
-
-                return (
-                  <div
-                    key={resCard.id || rIdx}
-                    className="relative"
-                  >
-                    {/* 3D Physical Card Edge Layer (Section 4: offset 4px) */}
-                    <div
-                      style={{ borderColor: tierInfo.hex }}
-                      className="absolute inset-0 rounded-2xl bg-black/85 translate-x-1 translate-y-1 -z-10 shadow-lg border pointer-events-none opacity-80"
-                    />
-
-                    <div
-                      draggable={!isExecutingTurn}
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData('text/plain', String(rIdx));
-                        setDraggedReserveIdx(rIdx);
-                        setDraggedSlot(null);
-                        sound.playCardDraw();
-                      }}
-                      onDragEnd={() => {
-                        setDraggedReserveIdx(null);
-                        setDragOverSlot(null);
-                      }}
-                      onClick={() => {
-                        if (selectedReserveIdx === rIdx) {
-                          setSelectedReserveIdx(null);
-                        } else {
-                          setSelectedReserveIdx(rIdx);
-                          sound.playCardSelect();
-                        }
-                      }}
-                      onContextMenu={(e) => {
-                        e.preventDefault();
-                        setInspectedCardData({
-                          card: resCard,
-                          slotIndex: -1,
-                          isPlayer: true,
-                        });
-                      }}
-                      style={{
-                        borderColor: isSelected ? '#fbbf24' : tierInfo.hex,
-                        boxShadow: isSelected
-                          ? `0 0 0 2px #fbbf24, 0 0 20px ${tierInfo.hex}88`
-                          : `0 0 0 1px ${tierInfo.hex}44, 0 6px 16px rgba(0,0,0,0.6)`,
-                      }}
-                      className={`w-28 sm:w-32 h-40 sm:h-46 rounded-2xl bg-gradient-to-b ${elemStyle.bg} border-2 shadow-xl p-2 flex flex-col justify-between cursor-grab active:cursor-grabbing transform transition-all select-none relative group ${
-                        isSelected
-                          ? 'ring-4 ring-amber-400/80 -translate-y-4 shadow-[0_0_25px_rgba(245,158,11,0.9)]'
-                          : isBeingDragged
-                          ? 'opacity-40 scale-95 border-emerald-400'
-                          : `hover:-translate-y-2 hover:scale-105 hover:border-amber-300 shadow-[0_4px_16px_rgba(0,0,0,0.6)]`
-                      }`}
-                      title={`Kéo thả hoặc nhấp để đặt vào làn trên sân (Chuột phải: Xem chi tiết)`}
-                    >
-                      {/* Header: Tier Badge, Monster Name & Element */}
-                      <div className="flex items-center justify-between gap-1 border-b border-white/10 pb-1 shrink-0">
-                        <div className="flex items-center gap-1 truncate min-w-0">
-                          <span
-                            style={{ backgroundColor: tierInfo.hex }}
-                            className="px-1 py-0.2 rounded text-[7.5px] font-mono font-black text-slate-950 uppercase shrink-0 shadow-xs"
-                            title={`Bậc: ${tierInfo.name} (${tierInfo.code})`}
-                          >
-                            {tierInfo.code}
-                          </span>
-                          <span className="font-fantasy font-black text-[10px] sm:text-[11px] text-amber-100 truncate drop-shadow">
-                            {resCard.name}
-                          </span>
-                        </div>
-                        <span className={`text-[7.5px] font-black font-mono px-1 py-0.2 rounded bg-black/50 ${elemStyle.text} border border-white/10 shrink-0`}>
-                          {elemStyle.badge}
-                        </span>
-                      </div>
-
-                      {/* Artwork Container: Centered Avatar with Glow */}
-                      <div className={`my-1 py-2 rounded-xl bg-gradient-to-b ${elemStyle.artBg} border border-white/10 flex items-center justify-center relative overflow-hidden shadow-inner flex-1`}>
-                        <span className="text-3xl sm:text-4xl drop-shadow-[0_4px_10px_rgba(0,0,0,0.8)] group-hover:scale-115 transition-transform duration-300">
-                          {resCard.avatar}
-                        </span>
-                      </div>
-
-                      {/* Footer: HP, ATK and Speed Badges */}
-                      <div className="flex items-center justify-between font-mono text-[8.5px] sm:text-[9.5px] text-white shrink-0 gap-0.5 pt-1 border-t border-white/10">
-                        <span className="px-1 py-0.2 rounded bg-gradient-to-r from-red-900 to-rose-950 border border-red-500/50 font-bold flex items-center gap-0.5 shadow-xs" title="Máu HP">
-                          <span>❤️</span>
-                          <span>{resCard.hp}</span>
-                        </span>
-                        <span className="px-1 py-0.2 rounded bg-gradient-to-r from-amber-700 to-yellow-900 border border-amber-500/50 font-bold flex items-center gap-0.5 shadow-xs" title="Công ATK">
-                          <span>⚔️</span>
-                          <span>{resCard.attackPower}</span>
-                        </span>
-                        <span className="px-1 py-0.2 rounded bg-gradient-to-r from-cyan-950 to-teal-900 border border-cyan-500/50 font-bold flex items-center gap-0.5 shadow-xs" title="Tốc SPD">
-                          <span>⚡</span>
-                          <span>{resCard.speed}</span>
-                        </span>
-                      </div>
-
-                      {isSelected && (
-                        <div className="absolute -top-3 inset-x-2 py-0.5 rounded-full bg-gradient-to-r from-amber-400 via-yellow-300 to-amber-400 text-slate-950 font-black text-[8px] text-center uppercase tracking-wider shadow-lg ring-1 ring-white/50 animate-bounce">
-                          👉 Đang Chọn
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        ) : (
-          <div className="text-[10px] sm:text-[11px] text-emerald-400/40 font-mono italic pb-1">
-            Bàn đấu rừng rậm cổ đại
-          </div>
-        )}
+        {/* BOTTOM CENTER: UNOBSTRUCTED DARK CONTINENT ARENA BANNER */}
+        <div className="flex flex-col items-center pb-1 text-center pointer-events-none">
+          <span className="text-[11px] sm:text-xs font-fantasy font-black tracking-widest text-emerald-300/80 drop-shadow">
+            🌌 ĐẤU TRƯỜNG LỤC ĐỊA ĐEN (HUNTER X HUNTER)
+          </span>
+          <span className="text-[9px] text-amber-400/60 font-mono">
+            {reserveRoster && reserveRoster.length > 0 && playerParty.slice(0, 3).some(p => p === null)
+              ? '✨ Có làn trống! Bấm vào làn trống hoặc nút Dự Bị để xuất trận quái thú'
+              : 'Chiến tuyến 3 làn đối đầu • Lượt đi quyết định bởi Tốc Độ SPD'}
+          </span>
+        </div>
 
         {/* BOTTOM RIGHT: WAR HORN + CARD DECK STAND (Image 1 Style) */}
         <div
@@ -1127,6 +1085,105 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
           </div>
         </div>
       </div>
+
+      {/* ================= DEDICATED SLIDE-UP RESERVE ROSTER DRAWER (Không che bài trên sân!) ================= */}
+      {showReserveDrawer && reserveRoster && reserveRoster.length > 0 && (
+        <div className="fixed inset-x-0 bottom-0 z-50 p-3 sm:p-4 bg-slate-950/95 border-t-2 border-amber-500 shadow-[0_-15px_40px_rgba(0,0,0,0.9)] backdrop-blur-2xl animate-in slide-in-from-bottom duration-200">
+          <div className="max-w-4xl mx-auto flex flex-col gap-2">
+            <div className="flex items-center justify-between border-b border-white/10 pb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-sm sm:text-base font-black text-amber-300 font-mono tracking-wider flex items-center gap-1.5">
+                  <span>🃏 QUÁI THÚ TRONG TÚI DỰ BỊ ({reserveRoster.length})</span>
+                </span>
+                <span className="text-[10px] sm:text-xs text-emerald-300 bg-emerald-950/80 px-2.5 py-0.5 rounded-full border border-emerald-500/50">
+                  {deployTargetSlot !== null ? `Đang chọn xuất trận vào Làn ${deployTargetSlot + 1}` : 'Chạm quái rồi chạm Làn trống trên sân để điều động'}
+                </span>
+              </div>
+              <button
+                onClick={() => {
+                  setShowReserveDrawer(false);
+                  setDeployTargetSlot(null);
+                  setSelectedReserveIdx(null);
+                }}
+                className="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold border border-slate-600 transition cursor-pointer"
+              >
+                ✕ Đóng
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3 overflow-x-auto py-2 px-1">
+              {reserveRoster.map((resCard, rIdx) => {
+                const isSelected = selectedReserveIdx === rIdx;
+                const elemStyle = HAND_CARD_STYLES[resCard.element] || HAND_CARD_STYLES.nature;
+                const tierCode = resCard.tier || 'C';
+                const tierInfo = TIERS[tierCode] || TIERS.C;
+
+                return (
+                  <div
+                    key={resCard.id || rIdx}
+                    onClick={() => {
+                      if (deployTargetSlot !== null) {
+                        handleDeployReserve(rIdx, deployTargetSlot);
+                      } else if (selectedReserveIdx === rIdx) {
+                        setSelectedReserveIdx(null);
+                      } else {
+                        setSelectedReserveIdx(rIdx);
+                        sound.playCardSelect();
+                        const emptyIdx = playerParty.findIndex(p => !p);
+                        if (emptyIdx !== -1) {
+                          setDeployTargetSlot(emptyIdx);
+                        }
+                      }
+                    }}
+                    style={{ borderColor: isSelected ? '#fbbf24' : tierInfo.hex }}
+                    className={`shrink-0 w-32 sm:w-36 h-44 sm:h-48 rounded-2xl bg-gradient-to-b ${elemStyle.bg} border-2 p-2.5 flex flex-col justify-between cursor-pointer transition select-none shadow-xl relative group ${
+                      isSelected
+                        ? 'ring-4 ring-amber-400 -translate-y-2 shadow-[0_0_25px_rgba(245,158,11,0.9)]'
+                        : 'hover:-translate-y-1 hover:border-amber-300'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between text-[8px] font-mono border-b border-white/10 pb-1">
+                      <div className="flex items-center gap-1 truncate min-w-0">
+                        <span style={{ backgroundColor: tierInfo.hex }} className="px-1 py-0.2 rounded text-[7.5px] font-black text-slate-950 uppercase shrink-0">
+                          {tierInfo.code}
+                        </span>
+                        <span className="font-fantasy font-black text-xs text-amber-100 truncate">{resCard.name}</span>
+                      </div>
+                      <span className={`text-[7.5px] font-black px-1 py-0.2 rounded bg-black/50 ${elemStyle.text}`}>{elemStyle.badge}</span>
+                    </div>
+
+                    <div className={`my-1 py-2 rounded-xl bg-gradient-to-b ${elemStyle.artBg} border border-white/10 flex items-center justify-center flex-1 shadow-inner text-4xl`}>
+                      {resCard.avatar}
+                    </div>
+
+                    <div className="flex items-center justify-between font-mono text-[9px] text-white pt-1 border-t border-white/10">
+                      <span className="px-1 py-0.2 rounded bg-red-950 border border-red-500/50">❤️{resCard.hp}</span>
+                      <span className="px-1 py-0.2 rounded bg-amber-950 border border-amber-500/50">⚔️{resCard.attackPower}</span>
+                      <span className="px-1 py-0.2 rounded bg-cyan-950 border border-cyan-500/50">⚡{resCard.speed}</span>
+                    </div>
+
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        const targetSlot = deployTargetSlot ?? playerParty.findIndex(p => !p);
+                        if (targetSlot !== -1) {
+                          handleDeployReserve(rIdx, targetSlot);
+                        } else {
+                          setBannerNotice('Cả 3 Làn đều đã có quái! Hãy Thu Hồi 1 quái về trước.');
+                          setTimeout(() => setBannerNotice(null), 3000);
+                        }
+                      }}
+                      className="mt-1.5 py-1 px-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-[10px] uppercase shadow-md transition cursor-pointer"
+                    >
+                      {deployTargetSlot !== null ? `Xuất trận Làn ${deployTargetSlot + 1}` : 'Xuất Trận'}
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ================= MOBILE TACTICAL COMMAND DECK (md:hidden) ================= */}
       <div className="md:hidden w-full z-30 shrink-0 bg-gradient-to-t from-slate-950 via-slate-950/98 to-slate-900/95 border-t border-amber-600/60 shadow-[0_-8px_25px_rgba(0,0,0,0.9)] backdrop-blur-xl px-1.5 py-1 flex flex-col gap-1">
@@ -1298,14 +1355,14 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
         <div className="flex items-center justify-between w-full pt-0.5 border-t border-slate-800/80 text-[9.5px] font-mono">
           <button
             type="button"
-            onClick={() => setShowMobileHandDrawer(prev => !prev)}
+            onClick={() => setShowReserveDrawer(prev => !prev)}
             className={`px-2 py-0.5 rounded-lg border font-bold flex items-center gap-1 transition ${
-              showMobileHandDrawer
+              showReserveDrawer
                 ? 'bg-amber-950 border-amber-400 text-amber-200 ring-1 ring-amber-400/50'
                 : 'bg-slate-900 border-slate-700 text-slate-300'
             }`}
           >
-            <span>🃏 Trên tay ({reserveRoster.length})</span>
+            <span>🃏 Dự bị ({reserveRoster.length})</span>
           </button>
 
           <button
@@ -1347,59 +1404,7 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
           </button>
         </div>
 
-        {/* MOBILE SLIDE-UP HAND TRAY DRAWER */}
-        {showMobileHandDrawer && reserveRoster.length > 0 && (
-          <div className="w-full pt-1.5 pb-0.5 border-t border-emerald-700/60 animate-in slide-in-from-bottom duration-200 flex flex-col gap-1">
-            <div className="flex items-center justify-between text-[9px] font-mono text-emerald-300 px-1">
-              <span>Chạm thẻ trên tay rồi chạm Làn trống trên sân để xuất trận:</span>
-              <button
-                type="button"
-                onClick={() => setShowMobileHandDrawer(false)}
-                className="text-slate-400 hover:text-white px-1.5 py-0.2 rounded bg-slate-800"
-              >
-                Đóng ✕
-              </button>
-            </div>
-            <div className="flex items-center gap-2 overflow-x-auto py-1 px-1">
-              {reserveRoster.map((resCard, rIdx) => {
-                const isSelected = selectedReserveIdx === rIdx;
-                const elemStyle = HAND_CARD_STYLES[resCard.element] || HAND_CARD_STYLES.nature;
-                const tierInfo = TIERS[resCard.tier || 'C'] || TIERS.C;
 
-                return (
-                  <div
-                    key={resCard.id || rIdx}
-                    onClick={() => {
-                      if (selectedReserveIdx === rIdx) {
-                        setSelectedReserveIdx(null);
-                      } else {
-                        setSelectedReserveIdx(rIdx);
-                        sound.playCardSelect();
-                      }
-                    }}
-                    style={{ borderColor: isSelected ? '#fbbf24' : tierInfo.hex }}
-                    className={`shrink-0 w-24 h-28 rounded-xl bg-gradient-to-b ${elemStyle.bg} border-2 p-1.5 flex flex-col justify-between cursor-pointer transition select-none ${
-                      isSelected
-                        ? 'ring-2 ring-amber-400 -translate-y-1 shadow-[0_0_15px_rgba(245,158,11,0.9)]'
-                        : 'shadow-md'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between text-[8px] font-mono border-b border-white/10 pb-0.5">
-                      <span className="font-fantasy font-black text-amber-100 truncate">{resCard.name}</span>
-                      <span className={elemStyle.text}>{elemStyle.badge}</span>
-                    </div>
-                    <div className="text-2xl my-auto text-center">{resCard.avatar}</div>
-                    <div className="flex items-center justify-between text-[7.5px] font-mono text-white pt-0.5 border-t border-white/10">
-                      <span>❤️{resCard.hp}</span>
-                      <span>⚔️{resCard.attackPower}</span>
-                      <span>⚡{resCard.speed}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* ================= 5. SCREEN-LEVEL FIXED SKILL TOOLTIP (Khắc phục 100% che chữ / cắt chữ) ================= */}

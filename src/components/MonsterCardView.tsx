@@ -364,12 +364,7 @@ export const MonsterCardView: React.FC<MonsterCardViewProps> = ({
           </button>
         )}
 
-        {/* Target Ribbon */}
-        {isSelectedTarget && (
-          <div className="absolute -top-3.5 inset-x-3 bg-rose-700 text-white font-bold text-[9px] sm:text-[10px] uppercase tracking-wider py-0.5 rounded-full text-center flex items-center justify-center gap-1 shadow-xl border border-white/90 z-30 animate-pulse">
-            <Crosshair className="w-3 h-3" /> MỤC TIÊU
-          </div>
-        )}
+        {/* Target Indicator: Clean and subtle without distorting card artwork */}
 
         {/* Slash Cut Visual FX */}
         {isTakingDamage && (

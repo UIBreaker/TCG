@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Relic, MonsterCard, ElementType } from '../types/game';
-import { Briefcase, Coins, Scroll, Sparkles, X, Heart, Shield, Zap, Plus, Check, ArrowRight, ArrowLeft, Trash2 } from 'lucide-react';
+import { Briefcase, Coins, Scroll, Sparkles, X, Heart, Shield, Zap, Plus, Check, ArrowRight, ArrowLeft, Trash2, Key, Hammer, Package } from 'lucide-react';
 import { sound } from '../utils/audio';
 import confetti from 'canvas-confetti';
 import { RelicIcon } from './RelicIcon';
@@ -14,6 +14,7 @@ interface InventoryModalProps {
   shieldPotionsCount: number;
   keysCount?: number;
   lockpickToolkitsCount?: number;
+  chestsCount?: number;
   playerParty: (MonsterCard | null)[];
   reserveRoster: MonsterCard[];
   relicInventory: Relic[];
@@ -22,6 +23,8 @@ interface InventoryModalProps {
   onUseShieldPotion?: (targetSlot: number, isReserve?: boolean) => void;
   onEquipRelic?: (targetSlot: number, relic: Relic, isReserve?: boolean) => void;
   onUnequipRelic?: (targetSlot: number, relicIdx: number, isReserve?: boolean) => void;
+  onOpenChestWithKey?: () => void;
+  onOpenChestBruteForce?: () => void;
   onBuyItem?: (type: 'capture_card' | 'healing_herb' | 'shield_potion' | 'key' | 'toolkit', cost: number) => void;
   isInCombat?: boolean;
 }
@@ -50,6 +53,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
   shieldPotionsCount = 0,
   keysCount = 0,
   lockpickToolkitsCount = 0,
+  chestsCount = 0,
   playerParty,
   reserveRoster,
   relicInventory,
@@ -58,6 +62,8 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
   onUseShieldPotion,
   onEquipRelic,
   onUnequipRelic,
+  onOpenChestWithKey,
+  onOpenChestBruteForce,
   onBuyItem,
   isInCombat = false,
 }) => {
@@ -894,6 +900,77 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({
                     >
                       <Plus className="w-3.5 h-3.5 text-teal-300" />
                       <span>Mua thêm (25 Vàng)</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* 6. RƯƠNG KHO BÁU CỔ ĐẠI (ANCIENT CHESTS) */}
+                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-[#2c1a06] to-[#160c02] border-2 border-amber-500/80 shadow-lg flex flex-col justify-between">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <div className="w-12 h-12 rounded-xl bg-amber-900/60 border border-amber-400 flex items-center justify-center text-2xl shrink-0 shadow">
+                        🎁
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-fantasy font-black text-sm text-amber-200">
+                            Rương Kho Báu Cổ Đại
+                          </h4>
+                          <span className="px-2 py-0.5 rounded-full bg-amber-500/30 text-amber-300 font-mono font-black text-[11px]">
+                            Có sẵn: {chestsCount} rương
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-amber-200/80 mt-0.5 leading-snug">
+                          Thu thập từ chiến thắng dã thú Lục Địa Đen. Mở an toàn 100% bằng Chìa Khóa hoặc liều lĩnh Cạy Phá Khóa để nhận Vàng &amp; Cổ Vật!
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 pt-2.5 border-t border-amber-800/40 flex flex-wrap items-center justify-between gap-2">
+                    <button
+                      disabled={chestsCount <= 0 || keysCount <= 0}
+                      onClick={() => {
+                        if (chestsCount <= 0) {
+                          showNotice('❌ Bạn không có Rương Kho Báu nào trong túi!');
+                          return;
+                        }
+                        if (keysCount <= 0) {
+                          showNotice('❌ Bạn không có Chìa Khóa Cổ! Hãy mua thêm hoặc chọn Cạy Phá Khóa.');
+                          return;
+                        }
+                        sound.playCardSlam();
+                        confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+                        onOpenChestWithKey?.();
+                        showNotice('🔑 Đã dùng Chìa Khóa mở rương an toàn 100%! Nhận Vàng & Cổ Vật!');
+                      }}
+                      className={`py-1.5 px-3 rounded-xl font-black text-xs shadow-md flex items-center gap-1.5 transition cursor-pointer ${
+                        chestsCount > 0 && keysCount > 0
+                          ? 'bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 hover:brightness-110 shadow-amber-500/30'
+                          : 'bg-slate-900 border border-slate-700 text-slate-500 cursor-not-allowed'
+                      }`}
+                    >
+                      <Key className="w-3.5 h-3.5" />
+                      <span>Dùng Chìa Khóa ({keysCount})</span>
+                    </button>
+
+                    <button
+                      disabled={chestsCount <= 0}
+                      onClick={() => {
+                        if (chestsCount <= 0) {
+                          showNotice('❌ Bạn không có Rương Kho Báu nào trong túi!');
+                          return;
+                        }
+                        onOpenChestBruteForce?.();
+                      }}
+                      className={`py-1.5 px-3 rounded-xl font-black text-xs border transition cursor-pointer ${
+                        chestsCount > 0
+                          ? 'bg-gradient-to-r from-stone-800 to-amber-950 border-amber-600/70 text-amber-200 hover:text-white'
+                          : 'bg-slate-900 border-slate-800 text-slate-500 cursor-not-allowed'
+                      }`}
+                    >
+                      <Hammer className="w-3.5 h-3.5 text-amber-400" />
+                      <span>Cạy Phá Khóa ({lockpickToolkitsCount > 0 ? '60%' : '40%'} Tỉ Lệ)</span>
                     </button>
                   </div>
                 </div>

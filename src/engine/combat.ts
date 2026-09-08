@@ -153,6 +153,11 @@ export interface TurnResolutionResult {
   rewards?: {
     gold: number;
     gotRecruitmentCard: boolean;
+    chestsCount?: number;
+    keysCount?: number;
+    healingHerbsCount?: number;
+    shieldPotionsCount?: number;
+    lockpickToolkitsCount?: number;
     relicDrop?: Relic;
   };
 }
@@ -706,15 +711,15 @@ export const resolveCombatTurn = (
       const remainingEffects = [];
       for (const effect of card.statusEffects) {
         if (effect.type === 'burn') {
-          const burnDmg = 5;
+          const burnDmg = Math.max(1, effect.value || 1);
           card.hp = Math.max(0, card.hp - burnDmg);
-          addLog(card.name, side === 'player', `🔥 Bị thiêu đốt mất 5 HP!`, slotIdx);
+          addLog(card.name, side === 'player', `🔥 Bị thiêu đốt mất ${burnDmg} HP!`, slotIdx);
         } else if (effect.type === 'poison') {
-          const poisonDmg = effect.value || 6;
+          const poisonDmg = Math.max(1, effect.value || 1);
           card.hp = Math.max(0, card.hp - poisonDmg);
           addLog(card.name, side === 'player', `☣️ Trúng độc mất ${poisonDmg} HP!`, slotIdx);
         } else if (effect.type === 'regen') {
-          const regenHeal = effect.value || 5;
+          const regenHeal = Math.max(1, effect.value || 2);
           card.hp = Math.min(card.maxHp, card.hp + regenHeal);
           addLog(card.name, side === 'player', `🌱 Hồi Sinh Lực hồi phục +${regenHeal} HP`, slotIdx);
         }
@@ -740,8 +745,14 @@ export const resolveCombatTurn = (
 
   let rewards = undefined;
   if (isVictory) {
-    const goldDrop = isBoss ? 120 : isElite ? 65 : Math.floor(30 + Math.random() * 18);
-    const gotRecruitment = Math.random() < 0.2; // 20% drop rate
+    const goldDrop = isBoss ? 135 : isElite ? 70 : Math.floor(35 + Math.random() * 20);
+    const gotRecruitment = isBoss || Math.random() < (isElite ? 0.45 : 0.25);
+    const chestsCount = isBoss ? 1 : isElite ? (Math.random() < 0.7 ? 1 : 0) : (Math.random() < 0.35 ? 1 : 0);
+    const keysCount = isBoss ? 2 : isElite ? 1 : (Math.random() < 0.4 ? 1 : 0);
+    const healingHerbsCount = isBoss ? 2 : isElite ? (Math.random() < 0.6 ? 1 : 0) : (Math.random() < 0.4 ? 1 : 0);
+    const shieldPotionsCount = isBoss ? 1 : isElite ? (Math.random() < 0.5 ? 1 : 0) : (Math.random() < 0.3 ? 1 : 0);
+    const lockpickToolkitsCount = isBoss ? 1 : isElite ? (Math.random() < 0.4 ? 1 : 0) : 0;
+
     let relicDrop: Relic | undefined = undefined;
     const shouldDropRelic = isBoss || isElite || Math.random() < 0.25;
     if (shouldDropRelic) {
@@ -751,6 +762,11 @@ export const resolveCombatTurn = (
     rewards = {
       gold: goldDrop,
       gotRecruitmentCard: gotRecruitment,
+      chestsCount,
+      keysCount,
+      healingHerbsCount,
+      shieldPotionsCount,
+      lockpickToolkitsCount,
       relicDrop,
     };
   }

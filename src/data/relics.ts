@@ -4,7 +4,7 @@ export const ALL_RELICS: Relic[] = [
   {
     id: 'relic_cleave',
     name: 'Lưỡi Dao Gió (Đánh Lan)',
-    description: 'Đòn đánh lan 15% sát thương sang 2 ô liền kề. Tương tác: Lan truyền cả hiệu ứng Đốt Cháy, Độc Tố và Làm Chậm!',
+    description: 'Đòn đánh lan 20% sát thương sang 2 ô liền kề. Tương tác: Lan truyền cả hiệu ứng Đốt Cháy, Độc Tố và Làm Chậm!',
     rarity: 'rare',
     price: 130,
     icon: 'Swords',
@@ -14,7 +14,7 @@ export const ALL_RELICS: Relic[] = [
   {
     id: 'relic_burn',
     name: 'Hỏa Tinh Phù (Thiêu Đốt)',
-    description: 'Đòn đánh thiêu đốt mục tiêu, mất 5 HP mỗi lượt bỏ qua giáp. Tương tác: Lan truyền hỏa hoạn cực mạnh với Đánh Lan!',
+    description: 'Đòn đánh thiêu đốt mục tiêu, mất 1 HP mỗi lượt bỏ qua giáp (2 lượt). Tương tác: Lan truyền hỏa hoạn cực mạnh với Đánh Lan!',
     rarity: 'common',
     price: 100,
     icon: 'Flame',
@@ -24,7 +24,7 @@ export const ALL_RELICS: Relic[] = [
   {
     id: 'relic_poison',
     name: 'Nanh Nhện Độc (Nhiễm Độc)',
-    description: 'Đòn đánh tích lũy 2 tầng Độc Tố, gây sát thương DoT ăn mòn. Tương tác kích nổ dịch bệnh với Bình Độc Dược Cổ!',
+    description: 'Đòn đánh tích lũy 1 tầng Độc Tố, gây 1 sát thương DoT ăn mòn mỗi lượt. Tương tác kích nổ dịch bệnh với Bình Độc Dược Cổ!',
     rarity: 'common',
     price: 95,
     icon: 'Skull',
@@ -44,7 +44,7 @@ export const ALL_RELICS: Relic[] = [
   {
     id: 'relic_speed',
     name: 'Lông Vũ Bão Tố (Tốc Độ)',
-    description: 'Tăng vĩnh viễn +3 Tốc độ. Đòn đánh có tốc độ cao hơn đối thủ sẽ gây thêm +25% sát thương bạo kích.',
+    description: 'Tăng vĩnh viễn +2 Tốc độ. Đòn đánh có tốc độ cao hơn đối thủ sẽ gây thêm +20% sát thương bạo kích.',
     rarity: 'common',
     price: 90,
     icon: 'Wind',
@@ -54,7 +54,7 @@ export const ALL_RELICS: Relic[] = [
   {
     id: 'relic_thorns',
     name: 'Giáp Gai Cổ Xưa (Phản Đòn)',
-    description: 'Khi bị tấn công trực tiếp, phản lại 30% sát thương nhận vào cho kẻ ra đòn. Cực mạnh cho quái hệ Thổ.',
+    description: 'Khi bị tấn công trực tiếp, phản lại 25% sát thương nhận vào cho kẻ ra đòn (tối thiểu 1 ST). Cực mạnh cho quái hệ Thổ.',
     rarity: 'common',
     price: 105,
     icon: 'ShieldAlert',
@@ -64,7 +64,7 @@ export const ALL_RELICS: Relic[] = [
   {
     id: 'relic_chain_lightning',
     name: 'Lôi Thần Trụy (Giật Sét)',
-    description: 'Đòn đánh có 40% tỉ lệ gọi một tia sét phụ giật vào một kẻ địch ngẫu nhiên gây 14 sát thương Lôi.',
+    description: 'Đòn đánh có 40% tỉ lệ gọi một tia sét phụ giật vào một kẻ địch ngẫu nhiên gây 2 sát thương Lôi.',
     rarity: 'epic',
     price: 160,
     icon: 'Zap',
@@ -74,7 +74,7 @@ export const ALL_RELICS: Relic[] = [
   {
     id: 'relic_frostbite',
     name: 'Băng Bách Thạch (Đóng Băng)',
-    description: 'Đòn đánh làm giảm 4 Tốc độ của mục tiêu trong 2 lượt và có 30% cơ hội khiến mục tiêu Tê Liệt mất lượt.',
+    description: 'Đòn đánh làm giảm 2 Tốc độ của mục tiêu trong 2 lượt và có 25% cơ hội khiến mục tiêu Tê Liệt mất lượt.',
     rarity: 'rare',
     price: 130,
     icon: 'Snowflake',
@@ -84,7 +84,7 @@ export const ALL_RELICS: Relic[] = [
   {
     id: 'relic_ancient_heart',
     name: 'Trái Tim Cổ Thụ (Tái Sinh)',
-    description: 'Tăng vĩnh viễn +20 Máu Tối Đa và tự động hồi phục +5 Máu mỗi khi bắt đầu một lượt mới.',
+    description: 'Tăng vĩnh viễn +3 Máu Tối Đa và tự động hồi phục +1 Máu mỗi khi bắt đầu một lượt mới.',
     rarity: 'legendary',
     price: 220,
     icon: 'ShieldHeart',
@@ -94,7 +94,7 @@ export const ALL_RELICS: Relic[] = [
   {
     id: 'relic_executioner',
     name: 'Lưỡi Hái Đồ Tể (Kết Liễu)',
-    description: 'Gây thêm +40% sát thương lên kẻ địch có lượng máu dưới 35% (giúp kết liễu nhanh hoặc ép máu để bắt quái).',
+    description: 'Gây thêm +35% sát thương lên kẻ địch có lượng máu dưới 35% (giúp kết liễu nhanh hoặc ép máu để bắt quái).',
     rarity: 'rare',
     price: 140,
     icon: 'Crosshair',
@@ -104,7 +104,7 @@ export const ALL_RELICS: Relic[] = [
   {
     id: 'relic_shield_battery',
     name: 'Lõi Năng Lượng Giáp (Hộ Thể)',
-    description: 'Vào trận nhận ngay 20 Giáp ảo. Khi lớp giáp này vỡ, phóng ra luồng sóng sốc phản nổ 10 sát thương lên toàn bộ đối thủ.',
+    description: 'Vào trận nhận ngay +4 Giáp ảo. Khi lớp giáp này vỡ, phóng ra luồng sóng sốc phản nổ 2 sát thương lên toàn bộ đối thủ.',
     rarity: 'rare',
     price: 135,
     icon: 'Shield',
@@ -114,7 +114,7 @@ export const ALL_RELICS: Relic[] = [
   {
     id: 'relic_overdrive_orb',
     name: 'Ngọc Tuyệt Kỹ (Cường Hóa Cuối)',
-    description: 'Chiêu Cuối (Ultimate) tăng thêm +50% uy lực sát thương/hồi phục và hồi ngay 15 HP cho toàn thể đồng minh khi kích hoạt!',
+    description: 'Chiêu Cuối (Ultimate) tăng thêm +30% uy lực và hồi ngay +2 HP cho toàn thể đồng minh khi kích hoạt!',
     rarity: 'legendary',
     price: 230,
     icon: 'Sparkles',
@@ -124,7 +124,7 @@ export const ALL_RELICS: Relic[] = [
   {
     id: 'relic_plague_catalyst',
     name: 'Bình Độc Dược Cổ (Dịch Bệnh)',
-    description: 'Khi một kẻ địch mang hiệu ứng Độc tử trận, độc tố bùng phát lây nhiễm ngay 3 tầng Độc sang kẻ địch đứng liền kề!',
+    description: 'Khi một kẻ địch mang hiệu ứng Độc tử trận, độc tố bùng phát lây nhiễm ngay 2 tầng Độc sang kẻ địch đứng liền kề!',
     rarity: 'epic',
     price: 165,
     icon: 'FlaskConical',
@@ -134,7 +134,7 @@ export const ALL_RELICS: Relic[] = [
   {
     id: 'relic_berserk_mask',
     name: 'Mặt Nạ Cuồng Nộ (Tử Chiến)',
-    description: 'Mỗi 25% máu đã mất sẽ gia tăng +20% tổng sát thương đòn đánh. Phù hợp cho quái vật có khả năng lội ngược dòng.',
+    description: 'Khi máu còn dưới 50%, gia tăng +25% tổng sát thương đòn đánh. Phù hợp cho quái thú có khả năng lội ngược dòng.',
     rarity: 'epic',
     price: 170,
     icon: 'FlameKindling',
@@ -144,7 +144,7 @@ export const ALL_RELICS: Relic[] = [
   {
     id: 'relic_elemental_prism',
     name: 'Lăng Kính Ngũ Hành (Khắc Tinh)',
-    description: 'Đòn đánh khắc chế hệ theo Ngôi Sao Ngũ Hành được tăng vọt thành +50% Sát thương (thay vì +35% cơ bản).',
+    description: 'Đòn đánh khắc chế hệ theo Ngôi Sao Ngũ Hành được gia tăng thêm +25% sát thương (tổng cộng +60% ST khắc hệ).',
     rarity: 'legendary',
     price: 240,
     icon: 'Compass',

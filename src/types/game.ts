@@ -167,10 +167,12 @@ export interface GameState {
   gold: number;
   keysCount: number; // Chìa khóa mở rương cổ đại 100% an toàn (Section 4 & 7.1)
   lockpickToolkitsCount: number; // Dụng cụ phá khóa, tăng tỷ lệ Brute Force thêm +20% (Section 4 & 7.2)
+  chestsCount: number; // Rương kho báu cổ đại thu thập được cất trong Túi Đồ
   captureCardsCount: number; // Lá bài chiêu mộ
   healingHerbsCount: number; // Dược thảo hồi phục sinh mệnh
   shieldPotionsCount: number; // Bình giáp ảo hộ mệnh
   currentFloor: number;
+  mapLoop: number; // Vòng lặp thám hiểm Lục Địa Đen (Map 1, Map 2, Map 3... vô tận cho đến khi thua)
   mapNodes: MapNode[];
   currentNodeId: string | null;
   phase: 'menu' | 'draft' | 'map' | 'combat' | 'shop' | 'rest' | 'event' | 'deck' | 'gameover' | 'victory' | 'sanctuary' | 'vault';
