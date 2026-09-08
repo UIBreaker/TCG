@@ -1,4 +1,4 @@
-import { MonsterCard, PlannedAction, CombatLogEntry, ElementType, Relic } from '../types/game';
+import { MonsterCard, PlannedAction, CombatLogEntry, ElementType, Relic, Skill, StatusType } from '../types/game';
 import { getRandomRelic } from '../data/relics';
 import { calculateDamage } from '../combat/damage';
 import { resolveImpactVFX, ImpactVFXSpec } from '../combat/impactVFX';
@@ -781,3 +781,123 @@ export const resolveCombatTurn = (
     rewards,
   };
 };
+
+export interface SkillPreviewResult {
+  expectedDamage: number;
+  hpDamage: number;
+  shieldDamage: number;
+  projectedHp: number;
+  projectedShield: number;
+  isFatal: boolean;
+  isAdvantage: boolean;
+  isDisadvantage: boolean;
+  elementMultiplier: number;
+  debuffToApply?: {
+    type: StatusType;
+    duration: number;
+    value: number;
+    name?: string;
+  };
+  hasCleave?: boolean;
+  hasBurn?: boolean;
+}
+
+/**
+ * Pure calculation of projected damage and debuffs when hovering over a skill
+ */
+export function calculateSkillPreview(
+  actor: MonsterCard,
+  target: MonsterCard,
+  skill: Skill,
+  distance: number = 0
+): SkillPreviewResult {
+  const hasPrism = actor.equippedRelics.some(r => r.type === 'elemental_prism');
+  const hasSpeedRelic = actor.equippedRelics.some(r => r.type === 'speed');
+  const hasExecutioner = actor.equippedRelics.some(r => r.type === 'executioner');
+  const hasBerserkMask = actor.equippedRelics.some(r => r.type === 'berserk_mask');
+  const hasOverdriveOrb = actor.equippedRelics.some(r => r.type === 'overdrive_orb');
+  const hasCleave = actor.equippedRelics.some(r => r.type === 'cleave');
+  const hasBurnRelic = actor.equippedRelics.some(r => r.type === 'burn');
+
+  const elemData = getElementMultiplier(actor.element, target.element, hasPrism);
+
+  let multiplier = elemData.mult;
+  if (skill.isUltimate && hasOverdriveOrb) multiplier *= 1.5;
+  if (actor.statusEffects.some(s => s.type === 'strengthen')) multiplier *= 1.25;
+  if (actor.statusEffects.some(s => s.type === 'weaken')) multiplier *= 0.75;
+  if (target.statusEffects.some(s => s.type === 'vulnerable')) multiplier *= 1.25;
+
+  const actorPassiveMult = getTierPassiveMultiplier(actor.tierLevel ?? 0);
+  const targetPassiveMult = getTierPassiveMultiplier(target.tierLevel ?? 0);
+
+  if (actor.passive.id === 'ignis_passion' && actor.hp < actor.maxHp * 0.5) {
+    multiplier *= (1 + 0.25 * actorPassiveMult);
+  }
+  if (actor.passive.id === 'ash_fangs' && target.statusEffects.some(s => s.type === 'burn')) {
+    multiplier *= (1 + 0.3 * actorPassiveMult);
+  }
+  if (actor.passive.id === 'high_voltage' && getEffectiveSpeed(actor) > getEffectiveSpeed(target)) {
+    multiplier *= (1 + 0.2 * actorPassiveMult);
+  }
+  if (actor.passive.id === 'stalker_instinct' && getEffectiveSpeed(actor) > getEffectiveSpeed(target)) {
+    multiplier *= (1 + 0.3 * actorPassiveMult);
+  }
+  if (target.passive.id === 'solid_shell') {
+    multiplier *= Math.max(0.15, 1 - 0.25 * targetPassiveMult);
+  }
+  if (hasSpeedRelic && getEffectiveSpeed(actor) > getEffectiveSpeed(target)) {
+    multiplier *= 1.2;
+  }
+  if (hasExecutioner && target.hp < target.maxHp * 0.35) {
+    multiplier *= 1.35;
+  }
+  if (hasBerserkMask) {
+    const lostRatio = (actor.maxHp - actor.hp) / actor.maxHp;
+    if (lostRatio >= 0.5) multiplier *= 1.25;
+  }
+
+  const baseAtk = skill.baseDamage > 0 ? skill.baseDamage : actor.attackPower;
+  const scaledBase = Math.max(1, Math.round(baseAtk * multiplier));
+
+  const actorCardModel = monsterToCombatCard(actor);
+  const targetCardModel = monsterToCombatCard(target);
+
+  const dmgRes = calculateDamage(actorCardModel, targetCardModel, distance, {
+    baseDamage: scaledBase,
+    isCrit: false,
+    hasFrontlineBlock: false,
+  });
+
+  const totalDamage = dmgRes.hpDamage + dmgRes.shieldAbsorbed;
+  const projectedHp = Math.max(0, dmgRes.defenderRemainingHP);
+  const projectedShield = Math.max(0, dmgRes.defenderRemainingShield);
+  const isFatal = projectedHp <= 0;
+
+  let debuffToApply = skill.statusEffect
+    ? {
+        type: skill.statusEffect.type,
+        duration: skill.statusEffect.duration,
+        value: skill.statusEffect.value,
+        name: skill.name,
+      }
+    : undefined;
+
+  if (!debuffToApply && hasBurnRelic && skill.baseDamage > 0) {
+    debuffToApply = { type: 'burn', duration: 2, value: 1, name: 'Cổ Vật Thiêu Đốt' };
+  }
+
+  return {
+    expectedDamage: totalDamage,
+    hpDamage: dmgRes.hpDamage,
+    shieldDamage: dmgRes.shieldAbsorbed,
+    projectedHp,
+    projectedShield,
+    isFatal,
+    isAdvantage: elemData.isAdvantage,
+    isDisadvantage: elemData.mult < 1.0,
+    elementMultiplier: elemData.mult,
+    debuffToApply,
+    hasCleave,
+    hasBurn: hasBurnRelic,
+  };
+}

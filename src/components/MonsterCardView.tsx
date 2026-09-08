@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { MonsterCard, PlannedAction, ElementType, Skill } from '../types/game';
+import { MonsterCard, PlannedAction, ElementType, Skill, StatusType } from '../types/game';
 import { calculateCaptureRate } from '../engine/capture';
 import { getEffectiveSpeed } from '../engine/combat';
 import { sound } from '../utils/audio';
@@ -62,6 +62,15 @@ export interface MonsterCardViewProps {
   onSelectActiveSlot?: () => void;
   onRecall?: () => void;
   recallsRemaining?: number;
+  projectedDamage?: number;
+  projectedDebuff?: {
+    type: StatusType;
+    duration: number;
+    value: number;
+    name?: string;
+  };
+  isTargetedByHover?: boolean;
+  isFatalProjected?: boolean;
 }
 
 // Dark Fantasy TCG Palettes inspired by Image 2 (Phapoda, Alpino, Peacarp, Abyssal Elk)
@@ -145,18 +154,31 @@ const CARD_PALETTES = {
   },
 };
 
+const STATUS_ICONS: Record<StatusType, { icon: string; label: string; bg: string; border: string; text: string }> = {
+  burn: { icon: '🔥', label: 'Cháy', bg: 'bg-red-950/90', border: 'border-red-500', text: 'text-red-200' },
+  poison: { icon: '☠️', label: 'Độc', bg: 'bg-purple-950/90', border: 'border-purple-500', text: 'text-purple-200' },
+  freeze: { icon: '❄️', label: 'Băng', bg: 'bg-cyan-950/90', border: 'border-cyan-400', text: 'text-cyan-200' },
+  weaken: { icon: '💔', label: 'Yếu', bg: 'bg-orange-950/90', border: 'border-orange-500', text: 'text-orange-200' },
+  vulnerable: { icon: '🎯', label: 'Vỡ Giáp', bg: 'bg-rose-950/90', border: 'border-rose-400', text: 'text-rose-200' },
+  haste: { icon: '⚡', label: 'Tăng Tốc', bg: 'bg-yellow-950/90', border: 'border-yellow-400', text: 'text-yellow-200' },
+  strengthen: { icon: '⚔️', label: 'Tăng Công', bg: 'bg-amber-950/90', border: 'border-amber-400', text: 'text-amber-200' },
+  shield: { icon: '🛡️', label: 'Giáp Ảo', bg: 'bg-blue-950/90', border: 'border-blue-400', text: 'text-blue-200' },
+  thorns: { icon: '🪞', label: 'Gai Phản', bg: 'bg-indigo-950/90', border: 'border-indigo-400', text: 'text-indigo-200' },
+  regen: { icon: '🌱', label: 'Hồi Phục', bg: 'bg-emerald-950/90', border: 'border-emerald-400', text: 'text-emerald-200' },
+};
+
 export const MonsterCardView: React.FC<MonsterCardViewProps> = ({
   card,
   slotIndex,
   isPlayer,
-  isSelectedTarget,
+  isSelectedTarget = false,
   isCurrentActor,
   isTakingDamage,
   isFatalBlow,
   isCritDamage,
   dealDelay,
-  captureStage = 'idle',
   currentAction,
+  captureStage = 'idle',
   enemyIntent,
   onSelectTarget,
   onSelectSkill,
@@ -182,6 +204,10 @@ export const MonsterCardView: React.FC<MonsterCardViewProps> = ({
   onSelectActiveSlot,
   onRecall,
   recallsRemaining = 2,
+  projectedDamage,
+  projectedDebuff,
+  isTargetedByHover = false,
+  isFatalProjected = false,
 }) => {
   // 3D Tilt & Specular Glare state
   const [tilt, setTilt] = useState({ x: 0, y: 0 });
@@ -316,7 +342,17 @@ export const MonsterCardView: React.FC<MonsterCardViewProps> = ({
         } ${
           isDead ? 'opacity-55 grayscale scale-95' : ''
         } ${isSelectedTarget ? 'is-target' : ''} ${
+          isTargetedByHover ? 'ring-4 ring-rose-500 shadow-[0_0_25px_rgba(244,63,94,0.7)] animate-pulse scale-[1.02]' : ''
+        } ${
           isActivePlayerSlot ? 'ring-2 sm:ring-4 ring-amber-400/90 shadow-[0_0_24px_rgba(245,158,11,0.7)]' : ''
+        } ${
+          card && card.statusEffects && card.statusEffects.some(s => s.type === 'freeze') ? 'ring-2 ring-cyan-400/80 shadow-[0_0_15px_rgba(6,182,212,0.4)]' : ''
+        } ${
+          card && card.statusEffects && card.statusEffects.some(s => s.type === 'burn') ? 'shadow-[0_0_15px_rgba(239,68,68,0.5)]' : ''
+        } ${
+          card && card.statusEffects && card.statusEffects.some(s => s.type === 'poison') ? 'shadow-[0_0_15px_rgba(168,85,247,0.5)]' : ''
+        } ${
+          card && card.statusEffects && card.statusEffects.some(s => s.type === 'strengthen') ? 'shadow-[0_0_15px_rgba(245,158,11,0.4)]' : ''
         } ${
           isDragging ? 'is-dragging' : ''
         } ${
@@ -518,29 +554,78 @@ export const MonsterCardView: React.FC<MonsterCardViewProps> = ({
             </div>
           )}
 
-          {/* Status Burn / Poison Tags on art */}
-          {(isBurned || isPoisoned) && (
-            <div className="absolute top-1 right-1 z-20 flex flex-col gap-0.5">
-              {isBurned && (
-                <span className="px-1.5 py-0.5 rounded bg-red-600/90 text-white text-[8px] font-black flex items-center gap-0.5 shadow animate-burn">
-                  <Flame className="w-2.5 h-2.5" /> Cháy
-                </span>
+          {/* TACTICAL STATUS EFFECTS BADGES (HIỂN THỊ RÕ RÀNG MỌI BUFF & DEBUFF) */}
+          {card.statusEffects && card.statusEffects.length > 0 && (
+            <div className="absolute top-1 right-1 z-25 flex flex-col items-end gap-0.5 max-w-[75%] pointer-events-none">
+              {card.statusEffects.map((st, sIdx) => {
+                const conf = STATUS_ICONS[st.type];
+                if (!conf) return null;
+                return (
+                  <div
+                    key={sIdx}
+                    className={`px-1.5 py-0.2 rounded-full border text-[7.5px] sm:text-[8.5px] font-mono font-black shadow-md flex items-center gap-0.5 backdrop-blur-xs ${conf.bg} ${conf.border} ${conf.text} animate-in fade-in zoom-in duration-100`}
+                    title={`${conf.label}: Còn ${st.duration} lượt`}
+                  >
+                    <span>{conf.icon}</span>
+                    <span className="leading-none">{conf.label}</span>
+                    <span className="text-amber-300 font-bold leading-none">{st.duration}L</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* PROJECTED DAMAGE & DEBUFF PREVIEW OVERLAY ON HOVER */}
+          {isTargetedByHover && (
+            <div className="absolute inset-x-1 top-7 z-40 flex flex-col items-center gap-1 pointer-events-none animate-in fade-in zoom-in duration-150">
+              {projectedDamage !== undefined && projectedDamage > 0 && (
+                <div className={`px-2 py-0.5 rounded-full border-2 font-mono font-black text-[11px] sm:text-xs shadow-2xl flex items-center gap-1 animate-bounce ${
+                  isFatalProjected
+                    ? 'bg-red-950 border-red-400 text-red-100 ring-2 ring-red-400'
+                    : 'bg-rose-950/95 border-rose-400 text-rose-100'
+                }`}>
+                  <span>{isFatalProjected ? '☠️ KẾT LIỄU!' : `⚔️ -${projectedDamage} HP`}</span>
+                </div>
               )}
-              {isPoisoned && (
-                <span className="px-1.5 py-0.5 rounded bg-purple-700/90 text-white text-[8px] font-black flex items-center gap-0.5 shadow">
-                  <Skull className="w-2.5 h-2.5" /> Độc
-                </span>
+
+              {projectedDebuff && (
+                <div className="px-2 py-0.5 rounded-full bg-purple-950/95 border border-purple-400 text-purple-200 font-mono font-bold text-[8px] sm:text-[9px] shadow-lg flex items-center gap-1 animate-pulse">
+                  <span>✨ Sẽ dính:</span>
+                  <span className="text-amber-300 font-black">
+                    {projectedDebuff.type === 'burn' && `🔥 Cháy (${projectedDebuff.duration}L)`}
+                    {projectedDebuff.type === 'poison' && `☠️ Độc (${projectedDebuff.duration}L)`}
+                    {projectedDebuff.type === 'freeze' && `❄️ Đóng Băng (${projectedDebuff.duration}L)`}
+                    {projectedDebuff.type === 'weaken' && `💔 Suy Yếu (${projectedDebuff.duration}L)`}
+                    {projectedDebuff.type === 'vulnerable' && `🎯 Dễ Tổn Thương (${projectedDebuff.duration}L)`}
+                    {projectedDebuff.type === 'thorns' && `🪞 Gai Phản Đòn`}
+                    {projectedDebuff.type === 'strengthen' && `⚔️ Tăng Công`}
+                    {projectedDebuff.type === 'haste' && `⚡ Tăng Tốc`}
+                    {projectedDebuff.type === 'shield' && `🛡️ Giáp Ảo`}
+                    {projectedDebuff.type === 'regen' && `🌱 Hồi Sinh Lực`}
+                  </span>
+                </div>
               )}
             </div>
           )}
 
-          {/* BOTTOM-LEFT HEART BADGE (HP) */}
+          {/* BOTTOM-LEFT HEART BADGE (HP + PROJECTED DAMAGE ON HOVER) */}
           <div
-            className="absolute -bottom-1 -left-1 z-20 px-2 py-0.5 rounded-full bg-gradient-to-br from-rose-600 via-red-600 to-red-950 border-2 border-[#fef08a] shadow-md flex items-center justify-center text-white font-black text-xs sm:text-[13px] font-mono gap-1"
-            title={`Máu: ${card.hp}/${card.maxHp}`}
+            className={`absolute -bottom-1 -left-1 z-30 px-2 py-0.5 rounded-full border-2 shadow-md flex items-center justify-center font-black text-xs sm:text-[13px] font-mono gap-1 transition-all ${
+              isTargetedByHover && projectedDamage !== undefined && projectedDamage > 0
+                ? 'bg-gradient-to-br from-rose-700 via-red-800 to-black border-yellow-300 ring-2 ring-red-400 animate-pulse text-yellow-100 scale-105'
+                : 'bg-gradient-to-br from-rose-600 via-red-600 to-red-950 border-[#fef08a] text-white'
+            }`}
+            title={`Máu: ${card.hp}/${card.maxHp}${isTargetedByHover && projectedDamage ? ` (Dự kiến mất ${projectedDamage} HP)` : ''}`}
           >
             <Heart className="w-3 h-3 fill-white shrink-0" />
-            <span className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">{card.hp}</span>
+            {isTargetedByHover && projectedDamage !== undefined && projectedDamage > 0 ? (
+              <span className="flex items-center gap-0.5">
+                <span className="line-through text-red-300 text-[10px] sm:text-[11px]">{card.hp}</span>
+                <span className="text-yellow-300 font-black">➔{Math.max(0, card.hp - projectedDamage)}</span>
+              </span>
+            ) : (
+              <span className="drop-shadow-[0_1px_2px_rgba(0,0,0,0.9)]">{card.hp}</span>
+            )}
           </div>
 
           {/* BOTTOM-CENTER ATK BADGE */}
@@ -664,6 +749,9 @@ export const MonsterCardView: React.FC<MonsterCardViewProps> = ({
                       }
                     }}
                     onMouseEnter={(e) => {
+                      if (isPlayer && !isDead) {
+                        sound.playSkillHover();
+                      }
                       if (onHoverSkill && card) {
                         const r = e.currentTarget.getBoundingClientRect();
                         onHoverSkill({

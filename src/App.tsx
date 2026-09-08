@@ -234,12 +234,17 @@ export const App: React.FC = () => {
         ],
       });
 
-      setGameState(prev => ({
-        ...prev,
-        phase: 'combat',
-        playerParty: prev.playerParty.map(c => (c ? resetCardForCombat(c) : null)),
-        reserveRoster: prev.reserveRoster.map(resetCardForCombat),
-      }));
+      setGameState(prev => {
+        const activeMonsters = prev.playerParty.filter((c): c is MonsterCard => c !== null);
+        const allMonsters = [...prev.reserveRoster, ...activeMonsters].map(resetCardForCombat);
+
+        return {
+          ...prev,
+          phase: 'combat',
+          playerParty: [null, null, null],
+          reserveRoster: allMonsters,
+        };
+      });
     } else if (node.type === 'shop') {
       setGameState(prev => ({ ...prev, phase: 'shop' }));
     } else if (node.type === 'rest') {
@@ -321,8 +326,13 @@ export const App: React.FC = () => {
         ? [...prev.relicInventory, battleRewards.relicDrop]
         : prev.relicInventory;
 
+      const activeMonsters = prev.playerParty.filter((c): c is MonsterCard => c !== null);
+      const allReserve = [...prev.reserveRoster, ...activeMonsters];
+
       return {
         ...prev,
+        playerParty: [null, null, null],
+        reserveRoster: allReserve,
         gold: prev.gold + battleRewards.gold,
         chestsCount: (prev.chestsCount ?? 0) + (battleRewards.chestsCount ?? 0),
         keysCount: (prev.keysCount ?? 0) + (battleRewards.keysCount ?? 0),

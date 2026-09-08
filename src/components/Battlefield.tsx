@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { MonsterCard, PlannedAction, CombatLogEntry, Relic, ElementType } from '../types/game';
 import { MonsterCardView, HoveredSkillData } from './MonsterCardView';
 import { CardInspectorModal } from './CardInspectorModal';
-import { resolveCombatTurn, generateEnemyActions, CombatStepAnimation } from '../engine/combat';
+import { resolveCombatTurn, generateEnemyActions, CombatStepAnimation, calculateSkillPreview, SkillPreviewResult } from '../engine/combat';
 import { attemptCapture, calculateCaptureRate } from '../engine/capture';
 import { sound } from '../utils/audio';
 import { Swords, ScrollText, Sparkles, Flame, Shield, ArrowLeftRight, Skull } from 'lucide-react';
@@ -238,10 +238,14 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
     sound.playCardSlam();
     onDeployReserveCard?.(reserveIdx, targetSlot);
     setSelectedReserveIdx(null);
-    setShowReserveDrawer(false);
     setShowMobileHandDrawer(false);
     setDeployTargetSlot(null);
-    setBannerNotice(`✨ Đã điều động quái thú vào Làn ${targetSlot + 1}!`);
+    const filledCount = playerParty.filter((p, idx) => idx === targetSlot ? true : p !== null).length;
+    if (filledCount >= 3) {
+      setShowReserveDrawer(false);
+    }
+    const cardName = reserveRoster[reserveIdx]?.name || 'linh thú';
+    setBannerNotice(`✨ Đã điều động [${cardName}] vào Làn ${targetSlot + 1}!`);
     setTimeout(() => setBannerNotice(null), 3000);
   };
 
@@ -279,7 +283,13 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
       setTimeout(() => sound.playCardDraw(), 260),
       setTimeout(() => sound.playCardSlam(), 400),
       setTimeout(() => sound.playCardSlam(), 650),
-      setTimeout(() => setIsDealingCards(false), 950),
+      setTimeout(() => {
+        setIsDealingCards(false);
+        if (playerParty.every(p => p === null) && reserveRoster && reserveRoster.length > 0) {
+          setShowReserveDrawer(true);
+          setBannerNotice('👉 Trận mới: Hãy kéo linh thú từ Dự Bị hoặc nhấp vào ô trống để điều động ra sân!');
+        }
+      }, 950),
     ];
 
     return () => timers.forEach(clearTimeout);
@@ -493,6 +503,10 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
         onDeployReserveCard(draggedReserveIdx, targetSlotIdx);
         sound.playCardSlam();
         setActiveSlotConfig(targetSlotIdx);
+        const filledCount = playerParty.filter((p, idx) => idx === targetSlotIdx ? true : p !== null).length;
+        if (filledCount >= 3) {
+          setShowReserveDrawer(false);
+        }
         const cardName = reserveRoster[draggedReserveIdx]?.name || 'linh thú';
         setBannerNotice(`⚔️ Đã xuất trận [${cardName}] vào Làn ${targetSlotIdx + 1}! Vị trí đã khóa cố định.`);
         setTimeout(() => setBannerNotice(null), 3500);
@@ -839,6 +853,34 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
                   isOpposing: enemyAction.targetSlotIndex === slotIdx,
                 } : undefined;
 
+                const isHoverTarget = hoveredSkillData?.isPlayer && (
+                  (playerActions[hoveredSkillData.slotIndex]?.targetSlotIndex ?? hoveredSkillData.slotIndex) === slotIdx
+                );
+
+                const primaryTargetSlot = hoveredSkillData?.isPlayer
+                  ? (playerActions[hoveredSkillData.slotIndex]?.targetSlotIndex ?? hoveredSkillData.slotIndex)
+                  : -1;
+                const isCleaveSplash = hoveredSkillData?.isPlayer && Boolean(hoveredSkillData.hasCleave) && Math.abs(primaryTargetSlot - slotIdx) === 1;
+
+                let previewResult: SkillPreviewResult | null = null;
+                if ((isHoverTarget || isCleaveSplash) && enemyCard && enemyCard.hp > 0 && hoveredSkillData?.isPlayer) {
+                  const actorCard = playerParty[hoveredSkillData.slotIndex];
+                  if (actorCard && actorCard.hp > 0) {
+                    const dist = Math.abs(hoveredSkillData.slotIndex - slotIdx);
+                    previewResult = calculateSkillPreview(actorCard, enemyCard, hoveredSkillData.skill, dist);
+                    if (isCleaveSplash && previewResult) {
+                      const splashDmg = Math.max(1, Math.round(previewResult.expectedDamage * 0.5));
+                      const splashHpDmg = Math.max(1, Math.round(previewResult.hpDamage * 0.5));
+                      previewResult = {
+                        ...previewResult,
+                        expectedDamage: splashDmg,
+                        hpDamage: splashHpDmg,
+                        isFatal: (enemyCard.hp - splashHpDmg) <= 0,
+                      };
+                    }
+                  }
+                }
+
                 return (
                   <div key={slotIdx} className="w-full flex flex-col items-center">
                     <MonsterCardView
@@ -869,6 +911,10 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
                       hasCaptureCard={captureCardsCount > 0}
                       onAttemptCapture={() => handleCaptureMonster(slotIdx)}
                       floatingDamage={floatingEffects[`enemy_${slotIdx}`]}
+                      projectedDamage={previewResult?.expectedDamage}
+                      projectedDebuff={previewResult?.debuffToApply}
+                      isTargetedByHover={Boolean(isHoverTarget || isCleaveSplash)}
+                      isFatalProjected={previewResult?.isFatal}
                     />
                   </div>
                 );
@@ -1179,6 +1225,17 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
                           setDeployTargetSlot(emptyIdx);
                         }
                       }
+                    }}
+                    draggable={!isExecutingTurn}
+                    onDragStart={(e) => {
+                      if (isExecutingTurn) return;
+                      setDraggedReserveIdx(rIdx);
+                      e.dataTransfer.setData('text/plain', String(rIdx));
+                      sound.playCardSlide();
+                    }}
+                    onDragEnd={() => {
+                      setDraggedReserveIdx(null);
+                      setDragOverSlot(null);
                     }}
                     style={{ borderColor: isSelected ? '#fbbf24' : tierInfo.hex }}
                     className={`shrink-0 w-32 sm:w-36 h-44 sm:h-48 rounded-2xl bg-gradient-to-b ${elemStyle.bg} border-2 p-2.5 flex flex-col justify-between cursor-pointer transition select-none shadow-xl relative group ${
