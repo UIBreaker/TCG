@@ -227,9 +227,9 @@ export const MonsterCardView: React.FC<MonsterCardViewProps> = ({
           {isPlayer ? (
             <div className="flex flex-col items-center gap-1">
               <span className="text-[11px] sm:text-xs font-black text-amber-200 bg-amber-950/90 px-3 py-1 rounded-full border border-amber-500/70 shadow-md group-hover:border-amber-300 group-hover:text-amber-100 transition">
-                ⚡ Kéo thả lá bài vào đây
+                ⚡ Chạm để đặt quái thú
               </span>
-              <span className="text-[10px] text-emerald-300/70 font-mono">hoặc nhấp chuột để điều động</span>
+              <span className="text-[10px] text-emerald-300/70 font-mono">hoặc kéo thả từ túi dự bị</span>
             </div>
           ) : (
             <span className="text-[10.5px] text-slate-400 font-mono font-medium">Trống (Kẻ địch chưa xuất hiện)</span>
@@ -349,23 +349,14 @@ export const MonsterCardView: React.FC<MonsterCardViewProps> = ({
           className="card-specular-glare"
         />
 
-        {/* SWAP BUTTON (Player cards quick swap button) */}
-        {isPlayer && !isDead && onTriggerSwap && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              sound.playCardSelect();
-              onTriggerSwap();
-            }}
-            className={`absolute -top-2.5 -left-2 z-30 p-1 rounded-full border shadow-md transition ${
-              isSwapSelected
-                ? 'bg-amber-400 border-amber-100 text-slate-950 scale-110 ring-2 ring-amber-400 animate-pulse'
-                : 'bg-slate-900/90 border-slate-700 text-slate-300 hover:text-amber-300 hover:scale-110'
-            }`}
-            title="Đổi chỗ làn"
+        {/* FIXED LANE BADGE (Bài nằm ở vị trí cố định) */}
+        {isPlayer && !isDead && (
+          <div
+            className="absolute -top-2.5 -left-2 z-30 px-2 py-0.5 rounded-full border shadow-sm bg-slate-950/90 border-slate-700 text-amber-300 text-[9px] font-mono font-bold flex items-center gap-1 pointer-events-none select-none"
+            title={`Làn ${slotIndex + 1} • Vị trí chiến đấu cố định (Dùng Thu Hồi hoặc chờ trận mới để đặt lại)`}
           >
-            <ArrowLeftRight className="w-3 h-3" />
-          </button>
+            <span>🔒 Làn {slotIndex + 1}</span>
+          </div>
         )}
 
         {/* QUICK INSPECT BUTTON (1-Click xem chi tiết thẻ bài) */}

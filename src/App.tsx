@@ -588,6 +588,40 @@ export const App: React.FC = () => {
     });
   };
 
+  // Reset entire active lineup to reserve (Setup phase in new match)
+  const handleResetLineupToReserve = () => {
+    sound.playCardDraw();
+    setGameState(prev => {
+      const activeCards = prev.playerParty.filter((c): c is MonsterCard => c !== null);
+      return {
+        ...prev,
+        playerParty: [null, null, null],
+        reserveRoster: [...prev.reserveRoster, ...activeCards],
+      };
+    });
+  };
+
+  // Quick deploy available monsters from reserve into empty lanes
+  const handleQuickDeployAll = () => {
+    sound.playCardSlam();
+    setGameState(prev => {
+      const nextParty = [...prev.playerParty];
+      const nextReserve = [...prev.reserveRoster];
+
+      for (let i = 0; i < 3; i++) {
+        if (nextParty[i] === null && nextReserve.length > 0) {
+          nextParty[i] = nextReserve.shift() || null;
+        }
+      }
+
+      return {
+        ...prev,
+        playerParty: nextParty,
+        reserveRoster: nextReserve,
+      };
+    });
+  };
+
   return (
     <div className="h-screen max-h-screen overflow-hidden bg-slate-950 text-slate-100 flex flex-col selection:bg-emerald-500 selection:text-white">
       {/* Top Header Bar */}
@@ -632,6 +666,8 @@ export const App: React.FC = () => {
             onConsumeCaptureCard={handleConsumeCaptureCard}
             onReorderParty={handleReorderParty}
             onOpenInventory={() => setIsInventoryOpen(true)}
+            onResetLineupToReserve={handleResetLineupToReserve}
+            onQuickDeployAll={handleQuickDeployAll}
             gold={gameState.gold}
             isBoss={isBossNode}
             isElite={isEliteNode}

@@ -116,6 +116,8 @@ interface BattlefieldProps {
   onConsumeCaptureCard: () => void;
   onReorderParty?: (fromIdx: number, toIdx: number) => void;
   onOpenInventory?: () => void;
+  onResetLineupToReserve?: () => void;
+  onQuickDeployAll?: () => void;
   gold?: number;
   isBoss?: boolean;
   isElite?: boolean;
@@ -134,6 +136,8 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
   onConsumeCaptureCard,
   onReorderParty,
   onOpenInventory,
+  onResetLineupToReserve,
+  onQuickDeployAll,
   gold = 0,
   isBoss = false,
   isElite = false,
@@ -147,6 +151,9 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
 
   // Turn counter
   const [turnCounter, setTurnCounter] = useState<number>(1);
+
+  // Track if Turn 1 action has started executing (ends the new match setup/re-place phase)
+  const [hasExecutedTurn1, setHasExecutedTurn1] = useState<boolean>(false);
 
   // Section 12: Recall counter (2 times per match: Thu Hồi: X/2) - tự động reset mỗi trận
   const [recallsRemaining, setRecallsRemaining] = useState<number>(2);
@@ -480,15 +487,15 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
   };
 
   const handleCardDrop = (targetSlotIdx: number) => {
-    // 1. Dropped from Hand Tray onto battlefield slot
+    // 1. Dropped from Hand Tray / Reserve Drawer onto empty battlefield slot
     if (draggedReserveIdx !== null) {
       if (onDeployReserveCard) {
         onDeployReserveCard(draggedReserveIdx, targetSlotIdx);
         sound.playCardSlam();
         setActiveSlotConfig(targetSlotIdx);
         const cardName = reserveRoster[draggedReserveIdx]?.name || 'linh thú';
-        setBannerNotice(`⚔️ Đã xuất trận [${cardName}] vào Làn ${targetSlotIdx + 1}! Trận đấu bắt đầu, hãy chọn kĩ năng!`);
-        setTimeout(() => setBannerNotice(null), 4500);
+        setBannerNotice(`⚔️ Đã xuất trận [${cardName}] vào Làn ${targetSlotIdx + 1}! Vị trí đã khóa cố định.`);
+        setTimeout(() => setBannerNotice(null), 3500);
       }
       setDraggedReserveIdx(null);
       setSelectedReserveIdx(null);
@@ -496,10 +503,6 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
       return;
     }
 
-    // 2. Swapping between board slots
-    if (draggedSlot !== null && draggedSlot !== targetSlotIdx) {
-      executeSwap(draggedSlot, targetSlotIdx);
-    }
     setDraggedSlot(null);
     setDragOverSlot(null);
   };
@@ -514,21 +517,22 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
         sound.playCardSlam();
         setActiveSlotConfig(slotIdx);
         const cardName = reserveRoster[selectedReserveIdx]?.name || 'linh thú';
-        setBannerNotice(`⚔️ Đã xuất trận [${cardName}] vào Làn ${slotIdx + 1}! Trận đấu bắt đầu, hãy chọn kĩ năng!`);
-        setTimeout(() => setBannerNotice(null), 4500);
+        setBannerNotice(`⚔️ Đã xuất trận [${cardName}] vào Làn ${slotIdx + 1}! Vị trí đã khóa cố định.`);
+        setTimeout(() => setBannerNotice(null), 3500);
       }
       setSelectedReserveIdx(null);
       return;
     }
 
-    if (swapSelectedSlot === null) {
-      setSwapSelectedSlot(slotIdx);
-      sound.playClick();
-    } else if (swapSelectedSlot === slotIdx) {
-      setSwapSelectedSlot(null);
-    } else {
-      executeSwap(swapSelectedSlot, slotIdx);
+    // If empty slot, open reserve drawer to pick card
+    if (!playerParty[slotIdx]) {
+      handleEmptySlotClick(slotIdx);
+      return;
     }
+
+    // Card already on board: locked in place, select as active slot
+    setActiveSlotConfig(slotIdx);
+    sound.playCardSelect();
   };
 
   // Re-deal / Summon Cards Entrance Animation
@@ -549,6 +553,7 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
   // MAIN: End Turn Button Clicked (Instant 1-Click Execution)
   const handleEndTurn = () => {
     if (isExecutingTurn) return;
+    setHasExecutedTurn1(true);
 
     // Normalize actions for all actionable slots: ensure valid skillIndex & alive target
     const finalPlayerActions = playerActions.map((action, slotIdx) => {
@@ -910,6 +915,53 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
 
           {/* 3. PLAYER 3-CARD ROW */}
           <div className="w-full">
+            {/* SETUP / RE-PLACE BAR FOR NEW MATCH */}
+            {turnCounter === 1 && !hasExecutedTurn1 && (
+              <div className="w-full flex items-center justify-between px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-950/90 via-slate-900/90 to-emerald-950/90 border border-emerald-500/40 text-xs mb-2 shadow-md shrink-0">
+                <div className="flex items-center gap-2">
+                  <span className="px-1.5 py-0.5 rounded bg-emerald-400 text-slate-950 font-mono font-black text-[9px] uppercase tracking-wider">
+                    TRẬN MỚI
+                  </span>
+                  <span className="font-fantasy font-black text-emerald-200 text-xs sm:text-[13px] flex items-center gap-1">
+                    🛡️ BỐ TRÍ TRẬN ĐỊA: Quái thú đặt xuống sẽ khóa làn
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {playerParty.some(p => p !== null) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onResetLineupToReserve?.();
+                        setShowReserveDrawer(true);
+                        setBannerNotice('✨ Đã rút toàn bộ quái về tay! Hãy chọn quái để đặt lại vào các làn.');
+                        setTimeout(() => setBannerNotice(null), 3500);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-amber-950 border border-amber-500/50 text-amber-200 font-mono font-bold text-[10.5px] flex items-center gap-1 transition cursor-pointer active:scale-95 shadow-xs"
+                      title="Rút toàn bộ quái về túi dự bị để đặt lại vị trí các làn"
+                    >
+                      <span>🔄 Đặt lại đội hình</span>
+                    </button>
+                  )}
+
+                  {reserveRoster && reserveRoster.length > 0 && playerParty.some(p => p === null) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onQuickDeployAll?.();
+                        setBannerNotice('⚡ Đã dàn trận toàn bộ quái thú vào các làn chiến đấu!');
+                        setTimeout(() => setBannerNotice(null), 3500);
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-emerald-700 hover:bg-emerald-600 border border-emerald-400 text-white font-mono font-black text-[10.5px] flex items-center gap-1 transition cursor-pointer active:scale-95 shadow-sm"
+                      title="Tự động xếp quái thú từ dự bị vào các làn trống"
+                    >
+                      <span>⚡ Dàn trận nhanh</span>
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-3 gap-2 sm:gap-3 md:gap-4 place-items-center">
               {playerParty.slice(0, 3).map((playerCard, slotIdx) => {
                 const currentAction = playerActions[slotIdx];
@@ -959,11 +1011,11 @@ export const Battlefield: React.FC<BattlefieldProps> = ({
                       }}
                       onHoverSkill={setHoveredSkillData}
                       floatingDamage={floatingEffects[`player_${slotIdx}`]}
-                      isDraggable={!isExecutingTurn && playerCard !== null}
-                      isDragging={draggedSlot === slotIdx}
+                      isDraggable={false}
+                      isDragging={false}
                       isDragOver={dragOverSlot === slotIdx}
-                      isSwapSelected={swapSelectedSlot === slotIdx}
-                      onDragStart={() => handleCardDragStart(slotIdx)}
+                      isSwapSelected={false}
+                      onDragStart={undefined}
                       onDragOver={(e) => handleCardDragOver(e, slotIdx)}
                       onDragEnter={() => setDragOverSlot(slotIdx)}
                       onDragLeave={() => {
